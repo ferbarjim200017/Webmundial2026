@@ -525,14 +525,15 @@ function SportEditor({
           <label className="mb-1.5 block text-xs font-semibold text-slate-400">
             Icono <span className="text-slate-500">({emoji})</span>
           </label>
-          <div className="grid grid-cols-8 gap-1.5">
+          <div className="grid grid-cols-6 gap-2">
             {SPORT_EMOJIS.map((e) => (
               <button
                 key={e}
+                type="button"
                 onClick={() => setEmoji(e)}
                 className={cn(
-                  "flex h-9 items-center justify-center rounded-lg text-lg transition",
-                  emoji === e ? "bg-brand-500/25 ring-1 ring-brand-400" : "bg-white/5 hover:bg-white/10"
+                  "flex h-11 items-center justify-center rounded-xl text-2xl transition",
+                  emoji === e ? "bg-brand-500/25 ring-2 ring-brand-400" : "bg-white/5 hover:bg-white/10"
                 )}
               >
                 {e}

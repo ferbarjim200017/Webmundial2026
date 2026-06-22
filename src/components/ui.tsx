@@ -4,7 +4,8 @@
 // =====================================================================
 import { cn } from "@/lib/helpers";
 import { pairColor } from "@/lib/helpers";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 export function Spinner({ className }: { className?: string }) {
   return (
@@ -121,15 +122,28 @@ export function Modal({
   title: string;
   children: ReactNode;
 }) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-      <div
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <div className="relative z-10 max-h-[88vh] w-full max-w-md animate-fade-up overflow-y-auto rounded-t-3xl border border-white/10 bg-ink-850 p-5 shadow-2xl sm:rounded-3xl safe-bottom">
-        <div className="mb-4 flex items-center justify-between">
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  // Bloquea el scroll del fondo mientras el modal está abierto
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
+  if (!open || !mounted) return null;
+
+  // Portal a <body> para escapar de cualquier ancestro con transform/filter
+  // (las animaciones de página dejan un transform que rompería el position:fixed).
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 flex max-h-[88dvh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-ink-850 shadow-2xl animate-fade-up sm:rounded-3xl">
+        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <h3 className="text-base font-bold text-white">{title}</h3>
           <button
             onClick={onClose}
@@ -139,8 +153,9 @@ export function Modal({
             ✕
           </button>
         </div>
-        {children}
+        <div className="overflow-y-auto px-5 py-4 safe-bottom">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
