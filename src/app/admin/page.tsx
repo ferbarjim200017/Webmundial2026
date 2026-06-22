@@ -11,6 +11,7 @@ import {
   Trash2,
   Check,
   RefreshCw,
+  RotateCcw,
 } from "lucide-react";
 import { Protected } from "@/components/AppShell";
 import { Card, EmptyState, FullScreenLoader, Modal, PairBadge, Spinner } from "@/components/ui";
@@ -28,6 +29,7 @@ import {
   addSport,
   updateSportMeta,
   deleteSport,
+  deleteAllSports,
   regenerateGroup,
   setUserRole,
   setUserPlayer,
@@ -162,6 +164,43 @@ function SetupSection() {
       <div className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 text-xs text-slate-400">
         Estado: {players.length} jugadores · {pairs.length} parejas · {sports.length} deportes.
       </div>
+
+      {/* Zona de reinicio */}
+      <Card className="border-rose-500/25 bg-rose-500/[0.04]">
+        <div className="flex items-start gap-3">
+          <span className="text-2xl">🧨</span>
+          <div className="flex-1">
+            <p className="font-semibold text-white">Reiniciar a cero</p>
+            <p className="mb-3 text-sm text-slate-400">
+              Borra <b className="text-slate-200">todos los deportes y resultados</b> y deja la
+              clasificación general a cero. Los <b className="text-slate-200">jugadores y parejas
+              se conservan</b>.
+            </p>
+            <button
+              disabled={busy !== null || sports.length === 0}
+              onClick={() => {
+                if (
+                  confirm(
+                    "¿Reiniciar a cero?\n\nSe eliminarán TODOS los deportes y sus resultados, y la clasificación general volverá a cero.\n\nLas parejas y los jugadores NO se tocan.\n\nEsta acción no se puede deshacer."
+                  )
+                ) {
+                  run("reset", deleteAllSports);
+                }
+              }}
+              className="btn-danger w-full"
+            >
+              {busy === "reset" ? (
+                <Spinner className="h-5 w-5" />
+              ) : (
+                <>
+                  <RotateCcw className="h-4 w-4" />
+                  {sports.length === 0 ? "No hay deportes que reiniciar" : "Reiniciar deportes y marcadores"}
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </Card>
     </div>
   );
 }

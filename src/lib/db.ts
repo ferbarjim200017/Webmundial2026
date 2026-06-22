@@ -8,6 +8,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -170,6 +171,19 @@ export async function updateSportMeta(
 
 export async function deleteSport(id: string) {
   await deleteDoc(doc(db, "sports", id));
+}
+
+/**
+ * Reinicia el torneo: borra TODOS los deportes (y por tanto todos los
+ * resultados y la clasificación general queda a cero). Conserva jugadores y
+ * parejas.
+ */
+export async function deleteAllSports(): Promise<void> {
+  const snap = await getDocs(collection(db, "sports"));
+  if (snap.empty) return;
+  const batch = writeBatch(db);
+  snap.forEach((d) => batch.delete(d.ref));
+  await batch.commit();
 }
 
 /** Regenera la fase de grupos (todos contra todos) y resetea eliminatorias. */
