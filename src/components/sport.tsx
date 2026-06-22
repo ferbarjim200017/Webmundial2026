@@ -4,9 +4,10 @@
 // =====================================================================
 import { useState } from "react";
 import Link from "next/link";
-import { Pencil, ChevronRight, Crown, Trophy } from "lucide-react";
+import { Pencil, ChevronRight, Crown, Trophy, Sparkles } from "lucide-react";
 import type { Pair, Player, Sport, SportStatus, GroupMatch } from "@/lib/types";
 import {
+  byId,
   cn,
   pairColor,
   pairInitials,
@@ -15,11 +16,24 @@ import {
 import {
   computeGroupTable,
   computeSportResult,
+  computeGeneral,
+  computeGrandFinalQual,
   resolveBracket,
+  resolveKnockout,
+  normalizeKnockout,
   pairMatchesInSport,
   type BracketMatch,
+  type BracketView,
 } from "@/lib/tournament";
-import { setGroupResult, setKnockoutResult } from "@/lib/db";
+import {
+  setGroupResult,
+  setKnockoutResult,
+  useGrandFinal,
+  setGrandFinalKnockoutResult,
+  createGrandFinalTiebreak,
+  setGrandFinalTiebreakResult,
+  clearGrandFinalTiebreak,
+} from "@/lib/db";
 import { PairBadge, Modal } from "./ui";
 
 // ---------- Estado visual ----------
@@ -200,24 +214,35 @@ export function GroupMatches({
   return (
     <div className="space-y-2">
       {matches.map((m) => (
-        <GroupMatchRow key={m.id} sport={sport} match={m} pairs={pairs} players={players} isAdmin={isAdmin} />
+        <LeagueMatchRow
+          key={m.id}
+          match={m}
+          pairs={pairs}
+          players={players}
+          isAdmin={isAdmin}
+          onSave={(h, a) => setGroupResult(sport, m.id, h, a)}
+          onClear={() => setGroupResult(sport, m.id, null, null)}
+        />
       ))}
     </div>
   );
 }
 
-function GroupMatchRow({
-  sport,
+/** Fila de partido de liga (grupos o desempate) con edición de admin. */
+export function LeagueMatchRow({
   match,
   pairs,
   players,
   isAdmin,
+  onSave,
+  onClear,
 }: {
-  sport: Sport;
   match: GroupMatch;
   pairs: Map<string, Pair>;
   players: Map<string, Player>;
   isAdmin: boolean;
+  onSave: (h: number, a: number) => Promise<void> | void;
+  onClear: () => Promise<void> | void;
 }) {
   const [open, setOpen] = useState(false);
   const home = pairs.get(match.homePairId);
@@ -266,8 +291,12 @@ function GroupMatchRow({
           awayColor={away?.color}
           initialHome={match.homeScore}
           initialAway={match.awayScore}
-          onSave={async (h, a) => setGroupResult(sport, match.id, h, a)}
-          onClear={async () => setGroupResult(sport, match.id, null, null)}
+          onSave={async (h, a) => {
+            await onSave(h, a);
+          }}
+          onClear={async () => {
+            await onClear();
+          }}
         />
       )}
     </>
@@ -296,42 +325,80 @@ export function BracketSection({
 
   return (
     <div className="space-y-4">
-      {res.status === "finished" && <ChampionBanner sport={sport} pairs={pairs} players={players} />}
+      {res.status === "finished" && (
+        <ChampionBanner pairId={res.championPairId} title={`Campeón de ${sport.name}`} pairs={pairs} players={players} />
+      )}
+      <KnockoutBoard
+        bracket={bracket}
+        pairs={pairs}
+        players={players}
+        isAdmin={isAdmin}
+        onPairClick={onPairClick}
+        onSave={(key, h, a, w) => setKnockoutResult(sport.id, key, h, a, w)}
+        onClear={(key) => setKnockoutResult(sport.id, key, null, null, null)}
+      />
+    </div>
+  );
+}
 
+/** Cuadro eliminatorio genérico (deportes y Gran Final). */
+export function KnockoutBoard({
+  bracket,
+  pairs,
+  players,
+  isAdmin,
+  onPairClick,
+  onSave,
+  onClear,
+}: {
+  bracket: BracketView;
+  pairs: Map<string, Pair>;
+  players: Map<string, Player>;
+  isAdmin: boolean;
+  onPairClick?: (pairId: string) => void;
+  onSave: (
+    key: "sf1" | "sf2" | "final" | "third",
+    h: number,
+    a: number,
+    w: "home" | "away" | null
+  ) => Promise<void> | void;
+  onClear: (key: "sf1" | "sf2" | "final" | "third") => Promise<void> | void;
+}) {
+  return (
+    <div className="space-y-4">
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Semifinales</p>
-        <KnockoutRow sport={sport} k="sf1" label="SF1 · 1º vs 4º" match={bracket.sf1} pairs={pairs} players={players} isAdmin={isAdmin} onPairClick={onPairClick} />
-        <KnockoutRow sport={sport} k="sf2" label="SF2 · 2º vs 3º" match={bracket.sf2} pairs={pairs} players={players} isAdmin={isAdmin} onPairClick={onPairClick} />
+        <KnockoutRow label="SF1 · 1º vs 4º" match={bracket.sf1} pairs={pairs} players={players} isAdmin={isAdmin} onPairClick={onPairClick} onSave={(h, a, w) => onSave("sf1", h, a, w)} onClear={() => onClear("sf1")} />
+        <KnockoutRow label="SF2 · 2º vs 3º" match={bracket.sf2} pairs={pairs} players={players} isAdmin={isAdmin} onPairClick={onPairClick} onSave={(h, a, w) => onSave("sf2", h, a, w)} onClear={() => onClear("sf2")} />
       </div>
-
       <div className="grid grid-cols-1 gap-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Final y 3er puesto</p>
-        <KnockoutRow sport={sport} k="final" label="🏆 Final" match={bracket.final} pairs={pairs} players={players} isAdmin={isAdmin} onPairClick={onPairClick} highlight />
-        <KnockoutRow sport={sport} k="third" label="🥉 3er puesto" match={bracket.third} pairs={pairs} players={players} isAdmin={isAdmin} onPairClick={onPairClick} />
+        <KnockoutRow label="🏆 Final" match={bracket.final} pairs={pairs} players={players} isAdmin={isAdmin} onPairClick={onPairClick} onSave={(h, a, w) => onSave("final", h, a, w)} onClear={() => onClear("final")} highlight />
+        <KnockoutRow label="🥉 3er puesto" match={bracket.third} pairs={pairs} players={players} isAdmin={isAdmin} onPairClick={onPairClick} onSave={(h, a, w) => onSave("third", h, a, w)} onClear={() => onClear("third")} />
       </div>
     </div>
   );
 }
 
 function KnockoutRow({
-  sport,
-  k,
   label,
   match,
   pairs,
   players,
   isAdmin,
   onPairClick,
+  onSave,
+  onClear,
   highlight,
 }: {
-  sport: Sport;
-  k: "sf1" | "sf2" | "final" | "third";
   label: string;
   match: BracketMatch;
   pairs: Map<string, Pair>;
   players: Map<string, Player>;
   isAdmin: boolean;
   onPairClick?: (pairId: string) => void;
+  onSave: (h: number, a: number, w: "home" | "away" | null) => Promise<void> | void;
+  onClear: () => Promise<void> | void;
   highlight?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -413,8 +480,12 @@ function KnockoutRow({
           initialAway={match.awayScore}
           allowWinnerPick
           initialWinner={match.winnerSide ?? null}
-          onSave={async (h, a, w) => setKnockoutResult(sport.id, k, h, a, w)}
-          onClear={async () => setKnockoutResult(sport.id, k, null, null, null)}
+          onSave={async (h, a, w) => {
+            await onSave(h, a, w);
+          }}
+          onClear={async () => {
+            await onClear();
+          }}
         />
       )}
     </>
@@ -422,27 +493,29 @@ function KnockoutRow({
 }
 
 function ChampionBanner({
-  sport,
+  pairId,
+  title,
+  big,
   pairs,
   players,
 }: {
-  sport: Sport;
+  pairId: string | null;
+  title: string;
+  big?: boolean;
   pairs: Map<string, Pair>;
   players: Map<string, Player>;
 }) {
-  const pairIds = [...pairs.keys()];
-  const res = computeSportResult(sport, pairIds);
-  const champ = res.championPairId ? pairs.get(res.championPairId) : null;
+  const champ = pairId ? pairs.get(pairId) : null;
   if (!champ) return null;
   const c = pairColor(champ.color);
   return (
     <div
       className="relative overflow-hidden rounded-2xl border border-gold/30 p-4 text-center"
-      style={{ backgroundImage: `linear-gradient(135deg, ${c.from}25, transparent)` }}
+      style={{ backgroundImage: `linear-gradient(135deg, ${c.from}30, transparent)` }}
     >
-      <Trophy className="mx-auto mb-1 h-7 w-7 text-gold drop-shadow-[0_0_10px_rgba(251,191,36,0.6)]" />
-      <p className="text-[11px] font-semibold uppercase tracking-widest text-gold">Campeón de {sport.name}</p>
-      <p className="mt-1 text-xl font-extrabold text-white">{champ.name}</p>
+      <Trophy className={cn("mx-auto mb-1 text-gold drop-shadow-[0_0_10px_rgba(251,191,36,0.6)]", big ? "h-9 w-9" : "h-7 w-7")} />
+      <p className="text-[11px] font-semibold uppercase tracking-widest text-gold">{title}</p>
+      <p className={cn("mt-1 font-extrabold text-white", big ? "text-2xl" : "text-xl")}>{champ.name}</p>
       <p className="text-xs text-slate-300">{pairMembers(champ, players)}</p>
     </div>
   );
@@ -692,5 +765,293 @@ function ScoreInput({
         placeholder="0"
       />
     </div>
+  );
+}
+
+// =====================================================================
+//  Gran Final
+// =====================================================================
+export function GrandFinal({
+  sports,
+  pairs,
+  players,
+  isAdmin,
+}: {
+  sports: Sport[];
+  pairs: Pair[];
+  players: Map<string, Player>;
+  isAdmin: boolean;
+}) {
+  const { data: gf, loading } = useGrandFinal();
+  const [resultsPairId, setResultsPairId] = useState<string | null>(null);
+
+  const pairsMap = byId(pairs);
+  const pairIds = pairs.map((p) => p.id);
+  const general = computeGeneral(sports, pairIds);
+  const qual = computeGrandFinalQual(general, gf?.tiebreak ?? null);
+  const allFinished =
+    sports.length > 0 && sports.every((s) => computeSportResult(s, pairIds).status === "finished");
+
+  if (loading) return null;
+
+  const Header = (
+    <div className="mb-1 flex items-center gap-2">
+      <Sparkles className="h-5 w-5 text-gold" />
+      <h2 className="text-lg font-extrabold tracking-tight text-white">Gran Final</h2>
+    </div>
+  );
+
+  // Sin puntos todavía
+  if (!qual.hasPoints) {
+    return (
+      <div>
+        {Header}
+        <div className="card mt-2 p-4 text-center">
+          <div className="mb-1 text-3xl">👑</div>
+          <p className="text-sm text-slate-400">
+            Cuando las parejas sumen puntos en los deportes, las 4 mejores lucharán aquí por el gran título.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Vista previa hasta que terminen todos los deportes
+  if (!allFinished) {
+    const top4 = general.slice(0, 4);
+    return (
+      <div>
+        {Header}
+        <p className="mb-2 text-xs text-slate-400">
+          La Gran Final se disputará cuando terminen todos los deportes. Clasificación provisional:
+        </p>
+        <Qualifiers seeds={top4.map((r) => r.pairId)} pairs={pairsMap} players={players} provisional />
+      </div>
+    );
+  }
+
+  const knockout = normalizeKnockout(gf?.knockout);
+  const seeds = qual.qualifiers ?? [];
+  const bracket = resolveKnockout(knockout, seeds);
+
+  return (
+    <div className="space-y-3">
+      {Header}
+      <p className="text-xs text-slate-400">Las 4 mejores parejas de la general luchan por el gran título.</p>
+
+      {qual.needsTiebreak && !qual.tiebreakReady ? (
+        <TiebreakSection
+          gf={gf}
+          boundary={qual.boundary}
+          spots={qual.spotsForBoundary}
+          pairs={pairsMap}
+          players={players}
+          isAdmin={isAdmin}
+        />
+      ) : (
+        <>
+          <Qualifiers seeds={seeds} pairs={pairsMap} players={players} />
+          {bracket.final.winnerPairId && (
+            <ChampionBanner pairId={bracket.final.winnerPairId} title="🏆 Gran Campeón" big pairs={pairsMap} players={players} />
+          )}
+          <KnockoutBoard
+            bracket={bracket}
+            pairs={pairsMap}
+            players={players}
+            isAdmin={isAdmin}
+            onPairClick={setResultsPairId}
+            onSave={(key, h, a, w) => setGrandFinalKnockoutResult(key, h, a, w)}
+            onClear={(key) => setGrandFinalKnockoutResult(key, null, null, null)}
+          />
+          <p className="text-center text-[11px] text-slate-500">Toca una pareja para ver su resumen</p>
+        </>
+      )}
+
+      <PairSportsModal
+        open={resultsPairId !== null}
+        onClose={() => setResultsPairId(null)}
+        sports={sports}
+        pairId={resultsPairId}
+        pairs={pairsMap}
+        players={players}
+      />
+    </div>
+  );
+}
+
+function Qualifiers({
+  seeds,
+  pairs,
+  players,
+  provisional,
+}: {
+  seeds: string[];
+  pairs: Map<string, Pair>;
+  players: Map<string, Player>;
+  provisional?: boolean;
+}) {
+  return (
+    <div className="card p-3">
+      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+        {provisional ? "Van clasificadas" : "Clasificadas a semifinales"}
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        {seeds.map((pid, i) => {
+          const pair = pairs.get(pid);
+          return (
+            <div key={pid} className="flex items-center gap-2">
+              <span className="w-4 shrink-0 text-center text-xs font-bold text-gold">{i + 1}º</span>
+              <PairBadge colorKey={pair?.color} initials={pair ? pairInitials(pair, players) : "?"} size={26} />
+              <span className="truncate text-sm font-semibold text-white">{pair?.name ?? "—"}</span>
+            </div>
+          );
+        })}
+        {seeds.length === 0 && <p className="text-xs text-slate-500">Pendiente…</p>}
+      </div>
+    </div>
+  );
+}
+
+function TiebreakSection({
+  gf,
+  boundary,
+  spots,
+  pairs,
+  players,
+  isAdmin,
+}: {
+  gf: import("@/lib/types").GrandFinal | null;
+  boundary: string[];
+  spots: number;
+  pairs: Map<string, Pair>;
+  players: Map<string, Player>;
+  isAdmin: boolean;
+}) {
+  const tb = gf?.tiebreak ?? null;
+  const valid =
+    !!tb && tb.pairIds.length === boundary.length && boundary.every((id) => tb.pairIds.includes(id));
+
+  return (
+    <div className="card space-y-3 border-amber-500/30 bg-amber-500/[0.05] p-4">
+      <p className="text-sm text-amber-200">
+        Empate a puntos por {spots === 1 ? "la última plaza" : `las últimas ${spots} plazas`} entre{" "}
+        {boundary.length} parejas. Hay que desempatar{" "}
+        {boundary.length === 2 ? "con un partido" : "con una mini-liga (todos contra todos)"}.
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {boundary.map((id) => (
+          <span key={id} className="chip bg-white/10 text-slate-200">
+            {pairs.get(id)?.name ?? "—"}
+          </span>
+        ))}
+      </div>
+
+      {!valid ? (
+        isAdmin ? (
+          <button onClick={() => createGrandFinalTiebreak(boundary, spots)} className="btn-primary w-full">
+            {boundary.length === 2 ? "Crear partido de desempate" : "Crear mini-liga de desempate"}
+          </button>
+        ) : (
+          <p className="text-xs text-slate-400">Un administrador debe crear el desempate.</p>
+        )
+      ) : (
+        <div className="space-y-2">
+          {tb!.matches.map((m) => (
+            <LeagueMatchRow
+              key={m.id}
+              match={m}
+              pairs={pairs}
+              players={players}
+              isAdmin={isAdmin}
+              onSave={(h, a) => gf && setGrandFinalTiebreakResult(gf, m.id, h, a)}
+              onClear={() => gf && setGrandFinalTiebreakResult(gf, m.id, null, null)}
+            />
+          ))}
+          {isAdmin && (
+            <button
+              onClick={() => {
+                if (confirm("¿Rehacer el desempate? Se borrarán sus resultados.")) clearGrandFinalTiebreak();
+              }}
+              className="btn-ghost w-full text-xs"
+            >
+              Rehacer desempate
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =====================================================================
+//  Modal: resumen de una pareja por deportes (clasificación general)
+// =====================================================================
+export function PairSportsModal({
+  open,
+  onClose,
+  sports,
+  pairId,
+  pairs,
+  players,
+}: {
+  open: boolean;
+  onClose: () => void;
+  sports: Sport[];
+  pairId: string | null;
+  pairs: Map<string, Pair>;
+  players: Map<string, Player>;
+}) {
+  const pair = pairId ? pairs.get(pairId) : undefined;
+  const pairIds = [...pairs.keys()];
+
+  const rows = pairId
+    ? sports.map((s) => {
+        const res = computeSportResult(s, pairIds);
+        let medal = "";
+        let pts = 0;
+        if (res.championPairId === pairId) { medal = "🥇"; pts = 3; }
+        else if (res.runnerUpPairId === pairId) { medal = "🥈"; pts = 2; }
+        else if (res.thirdPairId === pairId) { medal = "🥉"; pts = 1; }
+        return { sport: s, medal, pts };
+      })
+    : [];
+  const total = rows.reduce((a, r) => a + r.pts, 0);
+
+  return (
+    <Modal open={open && !!pair} onClose={onClose} title={pair?.name ?? "Pareja"}>
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <PairBadge colorKey={pair?.color} initials={pair ? pairInitials(pair, players) : "?"} size={44} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-white">{pairMembers(pair, players)}</p>
+            <p className="text-xs text-slate-400">Puntos totales</p>
+          </div>
+          <span className="text-2xl font-extrabold tabular text-white">{total}</span>
+        </div>
+
+        <div className="space-y-2">
+          {rows.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-white/10 px-4 py-6 text-center text-sm text-slate-400">
+              Todavía no hay deportes.
+            </p>
+          ) : (
+            rows.map((r) => (
+              <div key={r.sport.id} className="flex items-center gap-2 rounded-xl border border-white/10 bg-ink-900/60 px-3 py-2.5">
+                <span className="text-lg">{r.sport.emoji}</span>
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{r.sport.name}</span>
+                {r.medal ? (
+                  <span className="text-base">{r.medal}</span>
+                ) : (
+                  <span className="text-xs text-slate-500">—</span>
+                )}
+                <span className={cn("w-8 text-right text-sm font-bold tabular", r.pts > 0 ? "text-brand-300" : "text-slate-600")}>
+                  +{r.pts}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </Modal>
   );
 }

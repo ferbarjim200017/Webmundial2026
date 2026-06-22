@@ -1,9 +1,12 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
 import { Info, Trophy, ChevronRight } from "lucide-react";
 import { Protected } from "@/components/AppShell";
 import { Card, EmptyState, FullScreenLoader, SectionTitle } from "@/components/ui";
 import { Podium, GeneralTable } from "@/components/standings";
+import { GrandFinal, PairSportsModal } from "@/components/sport";
+import { useAuth } from "@/lib/auth";
 import { usePairs, usePlayers, useSports } from "@/lib/db";
 import { byId } from "@/lib/helpers";
 import { computeGeneral, computeSportResult } from "@/lib/tournament";
@@ -17,9 +20,11 @@ export default function HomePage() {
 }
 
 function GeneralStandings() {
+  const { isAdmin } = useAuth();
   const { data: pairs, loading: lpairs } = usePairs();
   const { data: players, loading: lpl } = usePlayers();
   const { data: sports, loading: ls } = useSports();
+  const [selectedPairId, setSelectedPairId] = useState<string | null>(null);
 
   if (lpairs || lpl || ls) return <FullScreenLoader />;
 
@@ -70,7 +75,10 @@ function GeneralStandings() {
         />
       )}
 
-      <GeneralTable rows={general} pairs={pairsMap} players={playersMap} />
+      <GeneralTable rows={general} pairs={pairsMap} players={playersMap} onPairClick={setSelectedPairId} />
+      <p className="-mt-3 text-center text-[11px] text-slate-500">Toca una pareja para ver su resumen por deportes</p>
+
+      <GrandFinal sports={sports} pairs={pairs} players={playersMap} isAdmin={isAdmin} />
 
       <Link href="/deportes" className="card flex items-center justify-between p-4 transition hover:border-brand-400/40 hover:bg-white/5">
         <div className="flex items-center gap-3">
@@ -91,6 +99,15 @@ function GeneralStandings() {
           <span className="font-semibold text-bronze">3er puesto 1 pt</span>.
         </p>
       </div>
+
+      <PairSportsModal
+        open={selectedPairId !== null}
+        onClose={() => setSelectedPairId(null)}
+        sports={sports}
+        pairId={selectedPairId}
+        pairs={pairsMap}
+        players={playersMap}
+      />
     </div>
   );
 }

@@ -34,20 +34,41 @@ function uid(prefix: string) {
   return `${prefix}_${Date.now().toString(36)}_${_seq}`;
 }
 
-/** Genera todos los partidos de un grupo de "todos contra todos". */
+const BYE = "__bye__";
+
+/**
+ * Genera la liga (solo ida: cada pareja juega una vez contra cada otra) usando
+ * el "método del círculo". Los partidos se ordenan por jornadas, de forma que
+ * dentro de cada jornada una pareja juega como mucho una vez → se evita, en la
+ * medida de lo posible, que una pareja juegue dos partidos seguidos.
+ */
 export function roundRobin(pairIds: string[]): GroupMatch[] {
+  const ids = [...pairIds];
+  if (ids.length < 2) return [];
+  if (ids.length % 2 !== 0) ids.push(BYE); // descanso si son impares
+  const n = ids.length;
+  const half = n / 2;
+
+  let arr = [...ids];
   const matches: GroupMatch[] = [];
-  for (let i = 0; i < pairIds.length; i++) {
-    for (let j = i + 1; j < pairIds.length; j++) {
+  for (let round = 0; round < n - 1; round++) {
+    for (let i = 0; i < half; i++) {
+      const a = arr[i];
+      const b = arr[n - 1 - i];
+      if (a === BYE || b === BYE) continue;
+      // Alternar local/visitante por jornada para repartir
+      const [home, away] = round % 2 === 0 ? [a, b] : [b, a];
       matches.push({
         id: uid("gm"),
-        homePairId: pairIds[i],
-        awayPairId: pairIds[j],
+        homePairId: home,
+        awayPairId: away,
         homeScore: null,
         awayScore: null,
         played: false,
       });
     }
+    // Rotación: se fija el primer elemento y se rota el resto
+    arr = [arr[0], arr[n - 1], ...arr.slice(1, n - 1)];
   }
   return matches;
 }
@@ -64,10 +85,14 @@ export function groupComplete(sport: Sport): boolean {
 }
 
 /**
- * Calcula la tabla de la fase de grupos.
- * @param pairIds parejas participantes (en orden, sirve de desempate estable)
+ * Calcula una clasificación a partir de una lista de partidos (liga).
+ * @param qualifyTop nº de parejas que se marcan como clasificadas (qualified)
  */
-export function computeGroupTable(sport: Sport, pairIds: string[]): GroupRow[] {
+export function computeStandings(
+  matches: GroupMatch[],
+  pairIds: string[],
+  qualifyTop = 4
+): GroupRow[] {
   const rows = new Map<string, GroupRow>();
   pairIds.forEach((pairId) => {
     rows.set(pairId, {
@@ -78,7 +103,7 @@ export function computeGroupTable(sport: Sport, pairIds: string[]): GroupRow[] {
     });
   });
 
-  for (const m of sport.group?.matches ?? []) {
+  for (const m of matches) {
     if (!isGroupMatchPlayed(m)) continue;
     const home = rows.get(m.homePairId);
     const away = rows.get(m.awayPairId);
@@ -109,10 +134,15 @@ export function computeGroupTable(sport: Sport, pairIds: string[]): GroupRow[] {
   sorted.forEach((row, i) => {
     row.diff = row.scored - row.conceded;
     row.rank = i + 1;
-    row.qualified = i < 4; // 4 clasifican, el 5º queda eliminado
+    row.qualified = i < qualifyTop;
   });
 
   return sorted;
+}
+
+/** Tabla de la fase de grupos de un deporte (4 clasifican, el 5º eliminado). */
+export function computeGroupTable(sport: Sport, pairIds: string[]): GroupRow[] {
+  return computeStandings(sport.group?.matches ?? [], pairIds, 4);
 }
 
 /** Las 4 parejas clasificadas, ordenadas por siembra (1º..4º). */
@@ -176,17 +206,28 @@ function build(
   };
 }
 
-/** Resuelve participantes y resultados de todo el cuadro. */
-export function resolveBracket(sport: Sport, pairIds: string[]): BracketView {
-  const s = seeds(sport, pairIds); // [s1, s2, s3, s4]
-  const ko = sport.knockout ?? emptyKnockout();
+/** Garantiza que un cuadro tenga las 4 llaves (rellena las que falten). */
+export function normalizeKnockout(ko?: Partial<Knockout> | null): Knockout {
+  return {
+    sf1: ko?.sf1 ?? emptyKnockoutMatch(),
+    sf2: ko?.sf2 ?? emptyKnockoutMatch(),
+    final: ko?.final ?? emptyKnockoutMatch(),
+    third: ko?.third ?? emptyKnockoutMatch(),
+  };
+}
 
+/** Resuelve un cuadro eliminatorio a partir de la siembra [1º,2º,3º,4º]. */
+export function resolveKnockout(ko: Knockout, s: string[]): BracketView {
   const sf1 = build("sf1", ko.sf1, s[0] ?? null, s[3] ?? null);
   const sf2 = build("sf2", ko.sf2, s[1] ?? null, s[2] ?? null);
   const final = build("final", ko.final, sf1.winnerPairId, sf2.winnerPairId);
   const third = build("third", ko.third, sf1.loserPairId, sf2.loserPairId);
-
   return { sf1, sf2, final, third };
+}
+
+/** Resuelve participantes y resultados del cuadro de un deporte. */
+export function resolveBracket(sport: Sport, pairIds: string[]): BracketView {
+  return resolveKnockout(sport.knockout ?? emptyKnockout(), seeds(sport, pairIds));
 }
 
 // ---------- Estado / resultado de un deporte ----------
@@ -317,4 +358,96 @@ export function computeGeneral(sports: Sport[], pairIds: string[]): GeneralRow[]
   });
 
   return sorted;
+}
+
+// ---------- Gran Final ----------
+
+function sameSet(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const s = new Set(a);
+  return b.every((x) => s.has(x));
+}
+
+export interface GrandFinalTiebreak {
+  pairIds: string[];
+  spots: number;
+  matches: GroupMatch[];
+}
+
+export interface GrandFinalQual {
+  /** Parejas con plaza asegurada (más puntos que el corte). */
+  secured: string[];
+  /** Parejas empatadas justo en el corte que se disputan las plazas restantes. */
+  boundary: string[];
+  spotsForBoundary: number;
+  needsTiebreak: boolean;
+  tiebreakReady: boolean;
+  /** Siembra final [1º,2º,3º,4º] si está resuelta; null si falta desempate. */
+  qualifiers: string[] | null;
+  hasPoints: boolean;
+}
+
+/**
+ * Determina las 4 parejas que pasan a la Gran Final a partir de la
+ * clasificación general. Si hay empate a puntos en el corte (4º puesto),
+ * marca que hace falta un desempate (un partido si son 2, mini-liga si más).
+ */
+export function computeGrandFinalQual(
+  general: GeneralRow[],
+  tiebreak: GrandFinalTiebreak | null
+): GrandFinalQual {
+  const ranked = [...general];
+  const hasPoints = ranked.some((r) => r.points > 0);
+  const totalSpots = Math.min(4, ranked.length);
+
+  const base: GrandFinalQual = {
+    secured: [],
+    boundary: [],
+    spotsForBoundary: 0,
+    needsTiebreak: false,
+    tiebreakReady: false,
+    qualifiers: null,
+    hasPoints,
+  };
+
+  if (ranked.length <= totalSpots) {
+    return {
+      ...base,
+      secured: ranked.map((r) => r.pairId),
+      qualifiers: ranked.slice(0, totalSpots).map((r) => r.pairId),
+    };
+  }
+
+  const cutoffPoints = ranked[totalSpots - 1].points;
+  const secured = ranked.filter((r) => r.points > cutoffPoints).map((r) => r.pairId);
+  const boundary = ranked.filter((r) => r.points === cutoffPoints).map((r) => r.pairId);
+  const spotsForBoundary = totalSpots - secured.length;
+
+  if (boundary.length === spotsForBoundary) {
+    return { ...base, secured, qualifiers: [...secured, ...boundary] };
+  }
+
+  // Empate en el corte → desempate
+  let qualifiers: string[] | null = null;
+  let tiebreakReady = false;
+  if (
+    tiebreak &&
+    sameSet(tiebreak.pairIds, boundary) &&
+    tiebreak.matches.length > 0 &&
+    tiebreak.matches.every(isGroupMatchPlayed)
+  ) {
+    tiebreakReady = true;
+    const table = computeStandings(tiebreak.matches, tiebreak.pairIds, spotsForBoundary);
+    qualifiers = [...secured, ...table.slice(0, spotsForBoundary).map((r) => r.pairId)];
+  }
+
+  return {
+    secured,
+    boundary,
+    spotsForBoundary,
+    needsTiebreak: true,
+    tiebreakReady,
+    qualifiers,
+    hasPoints,
+  };
 }

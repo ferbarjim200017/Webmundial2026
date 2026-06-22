@@ -23,7 +23,7 @@ import {
   PLAYER_NAMES,
 } from "./constants";
 import { emptyKnockout, roundRobin } from "./tournament";
-import type { AppUser, Pair, Player, Sport } from "./types";
+import type { AppUser, GrandFinal, Pair, Player, Sport } from "./types";
 
 // ---------------------------------------------------------------------
 //  Hooks de lectura en tiempo real
@@ -65,6 +65,33 @@ export const usePlayers = () => useCollection<Player>("players", "order");
 export const usePairs = () => useCollection<Pair>("pairs", "order");
 export const useSports = () => useCollection<Sport>("sports", "order");
 export const useUsers = () => useCollection<AppUser & { id: string }>("users");
+
+/** Documento único de la Gran Final (config/grandFinal). */
+export function useGrandFinal(): { data: GrandFinal | null; loading: boolean } {
+  const [data, setData] = useState<GrandFinal | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isFirebaseConfigured) {
+      setLoading(false);
+      return;
+    }
+    const unsub = onSnapshot(
+      doc(db, "config", "grandFinal"),
+      (snap) => {
+        setData(snap.exists() ? (snap.data() as GrandFinal) : null);
+        setLoading(false);
+      },
+      (err) => {
+        console.error("onSnapshot grandFinal", err);
+        setLoading(false);
+      }
+    );
+    return () => unsub();
+  }, []);
+
+  return { data, loading };
+}
 
 // ---------------------------------------------------------------------
 //  Inicialización del torneo
@@ -184,6 +211,72 @@ export async function deleteAllSports(): Promise<void> {
   const batch = writeBatch(db);
   snap.forEach((d) => batch.delete(d.ref));
   await batch.commit();
+}
+
+// ---------------------------------------------------------------------
+//  Gran Final (config/grandFinal)
+// ---------------------------------------------------------------------
+
+const grandFinalRef = () => doc(db, "config", "grandFinal");
+
+export async function setGrandFinalKnockoutResult(
+  key: "sf1" | "sf2" | "final" | "third",
+  homeScore: number | null,
+  awayScore: number | null,
+  winnerSide: "home" | "away" | null = null
+) {
+  await setDoc(
+    grandFinalRef(),
+    {
+      knockout: {
+        [key]: {
+          homeScore,
+          awayScore,
+          played: homeScore !== null && awayScore !== null,
+          winnerSide,
+        },
+      },
+    },
+    { merge: true }
+  );
+}
+
+/** Crea (o regenera) el desempate entre las parejas empatadas en el corte. */
+export async function createGrandFinalTiebreak(pairIds: string[], spots: number) {
+  await setDoc(
+    grandFinalRef(),
+    { tiebreak: { pairIds, spots, matches: roundRobin(pairIds) } },
+    { merge: true }
+  );
+}
+
+export async function setGrandFinalTiebreakResult(
+  gf: GrandFinal,
+  matchId: string,
+  homeScore: number | null,
+  awayScore: number | null
+) {
+  if (!gf.tiebreak) return;
+  const matches = gf.tiebreak.matches.map((m) =>
+    m.id === matchId
+      ? { ...m, homeScore, awayScore, played: homeScore !== null && awayScore !== null }
+      : m
+  );
+  await setDoc(grandFinalRef(), { tiebreak: { ...gf.tiebreak, matches } }, { merge: true });
+}
+
+export async function clearGrandFinalTiebreak() {
+  await setDoc(grandFinalRef(), { tiebreak: null }, { merge: true });
+}
+
+export async function resetGrandFinal() {
+  await setDoc(grandFinalRef(), { tiebreak: null, knockout: emptyKnockout() });
+}
+
+/** Reinicio total de marcadores: borra deportes y resetea la Gran Final. */
+export async function resetTournamentScores() {
+  await deleteAllSports();
+  await resetGrandFinal();
 }
 
 /** Regenera la fase de grupos (todos contra todos) y resetea eliminatorias. */

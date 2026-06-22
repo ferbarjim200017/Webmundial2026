@@ -71,6 +71,20 @@ export interface Sport {
   knockout: Knockout;
 }
 
+/**
+ * Gran Final: las 4 mejores parejas de la clasificación general luchan por el
+ * gran título. Documento único en config/grandFinal.
+ */
+export interface GrandFinal {
+  /** Desempate cuando hay empate a puntos en el corte (4º). */
+  tiebreak: {
+    pairIds: string[];
+    spots: number;
+    matches: GroupMatch[];
+  } | null;
+  knockout: Knockout;
+}
+
 // ---------- Tipos derivados (calculados, no se guardan) ----------
 
 export interface GroupRow {

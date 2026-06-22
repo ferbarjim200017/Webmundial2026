@@ -72,10 +72,12 @@ export function GeneralTable({
   rows,
   pairs,
   players,
+  onPairClick,
 }: {
   rows: GeneralRow[];
   pairs: Map<string, Pair>;
   players: Map<string, Player>;
+  onPairClick?: (pairId: string) => void;
 }) {
   return (
     <div className="card divide-y divide-white/5 overflow-hidden p-0">
@@ -83,10 +85,12 @@ export function GeneralTable({
         const pair = pairs.get(row.pairId);
         const podium = row.rank <= 3 && row.points > 0;
         return (
-          <div
+          <button
             key={row.pairId}
+            type="button"
+            onClick={() => onPairClick?.(row.pairId)}
             className={cn(
-              "flex items-center gap-3 px-3.5 py-3",
+              "flex w-full items-center gap-3 px-3.5 py-3 text-left transition hover:bg-white/[0.05] active:bg-white/[0.07]",
               podium && "bg-white/[0.03]"
             )}
           >
@@ -110,7 +114,7 @@ export function GeneralTable({
               <span className="text-xl font-extrabold tabular text-white">{row.points}</span>
               <span className="block text-[10px] uppercase tracking-wide text-slate-500">pts</span>
             </div>
-          </div>
+          </button>
         );
       })}
     </div>

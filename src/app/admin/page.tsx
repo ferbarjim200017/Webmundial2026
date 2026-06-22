@@ -29,7 +29,7 @@ import {
   addSport,
   updateSportMeta,
   deleteSport,
-  deleteAllSports,
+  resetTournamentScores,
   regenerateGroup,
   setUserRole,
   setUserPlayer,
@@ -184,7 +184,7 @@ function SetupSection() {
                     "¿Reiniciar a cero?\n\nSe eliminarán TODOS los deportes y sus resultados, y la clasificación general volverá a cero.\n\nLas parejas y los jugadores NO se tocan.\n\nEsta acción no se puede deshacer."
                   )
                 ) {
-                  run("reset", deleteAllSports);
+                  run("reset", resetTournamentScores);
                 }
               }}
               className="btn-danger w-full"
