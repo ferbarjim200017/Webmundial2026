@@ -301,6 +301,10 @@ export function pairMatchesInSport(
     { label: "3er puesto", m: b.third },
   ];
   for (const { label, m } of ko) {
+    // Solo partidos de eliminatoria YA jugados: los cruces provisionales (que
+    // se calculan según la clasificación actual aunque no se hayan disputado)
+    // repetirían rivales de la fase de grupos y confundirían.
+    if (!m.played) continue;
     if (m.homePairId !== pairId && m.awayPairId !== pairId) continue;
     const isHome = m.homePairId === pairId;
     out.push({
@@ -308,8 +312,8 @@ export function pairMatchesInSport(
       opponentPairId: isHome ? m.awayPairId : m.homePairId,
       ownScore: isHome ? m.homeScore : m.awayScore,
       oppScore: isHome ? m.awayScore : m.homeScore,
-      played: m.played,
-      outcome: m.played ? (m.winnerPairId === pairId ? "win" : "loss") : "pending",
+      played: true,
+      outcome: m.winnerPairId === pairId ? "win" : "loss",
     });
   }
 
