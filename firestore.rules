@@ -1,0 +1,39 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Helpers ----------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // ---------- Usuarios ----------
+    // Cada usuario crea su propio documento al iniciar sesión por primera vez.
+    // El rol 'admin' se autoasigna en el cliente solo si su correo está en la
+    // lista de administradores; un miembro normal NO puede cambiarse el rol.
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSelf(userId)
+        && request.resource.data.role in ['member', 'admin'];
+      allow update: if (isSelf(userId)
+                        && request.resource.data.role == resource.data.role)
+                     || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ---------- Datos del torneo (solo admin escribe) ----------
+    match /players/{id} { allow read: if isSignedIn(); allow write: if isAdmin(); }
+    match /pairs/{id}   { allow read: if isSignedIn(); allow write: if isAdmin(); }
+    match /sports/{id}  { allow read: if isSignedIn(); allow write: if isAdmin(); }
+    match /config/{id}  { allow read: if isSignedIn(); allow write: if isAdmin(); }
+  }
+}
