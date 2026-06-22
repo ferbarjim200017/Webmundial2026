@@ -8,6 +8,7 @@ import {
   GroupStandings,
   GroupMatches,
   BracketSection,
+  PairResultsModal,
   statusBadge,
 } from "@/components/sport";
 import { useAuth } from "@/lib/auth";
@@ -34,6 +35,7 @@ function SportDetail({ sportId }: { sportId: string }) {
   const { data: pairs, loading: lpairs } = usePairs();
   const { data: players, loading: lpl } = usePlayers();
   const [tab, setTab] = useState<"group" | "ko">("group");
+  const [resultsPairId, setResultsPairId] = useState<string | null>(null);
 
   if (ls || lpairs || lpl) return <FullScreenLoader />;
 
@@ -79,7 +81,10 @@ function SportDetail({ sportId }: { sportId: string }) {
 
       {tab === "group" ? (
         <div className="space-y-4">
-          <GroupStandings sport={sport} pairs={pairsMap} players={playersMap} />
+          <GroupStandings sport={sport} pairs={pairsMap} players={playersMap} onPairClick={setResultsPairId} />
+          <p className="-mt-2 text-center text-[11px] text-slate-500">
+            Toca una pareja para ver sus partidos
+          </p>
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
               Partidos del grupo
@@ -94,9 +99,19 @@ function SportDetail({ sportId }: { sportId: string }) {
               La fase de grupos no ha terminado: los cruces son provisionales según la clasificación actual.
             </p>
           )}
-          <BracketSection sport={sport} pairs={pairsMap} players={playersMap} isAdmin={isAdmin} />
+          <BracketSection sport={sport} pairs={pairsMap} players={playersMap} isAdmin={isAdmin} onPairClick={setResultsPairId} />
+          <p className="text-center text-[11px] text-slate-500">Toca una pareja para ver sus partidos</p>
         </div>
       )}
+
+      <PairResultsModal
+        open={resultsPairId !== null}
+        onClose={() => setResultsPairId(null)}
+        sport={sport}
+        pairId={resultsPairId}
+        pairs={pairsMap}
+        players={playersMap}
+      />
     </div>
   );
 }

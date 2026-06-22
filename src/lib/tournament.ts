@@ -211,6 +211,70 @@ export function computeSportResult(sport: Sport, pairIds: string[]): SportResult
   };
 }
 
+// ---------- Partidos de una pareja en un deporte ----------
+
+export interface PairMatchSummary {
+  phase: string; // "Grupos" | "Semifinal" | "Final" | "3er puesto"
+  opponentPairId: string | null;
+  ownScore: number | null;
+  oppScore: number | null;
+  played: boolean;
+  outcome: "win" | "loss" | "draw" | "pending";
+}
+
+/** Todos los partidos (grupos + eliminatoria) de una pareja en un deporte. */
+export function pairMatchesInSport(
+  sport: Sport,
+  pairId: string,
+  pairIds: string[]
+): PairMatchSummary[] {
+  const out: PairMatchSummary[] = [];
+
+  // Fase de grupos
+  for (const m of sport.group?.matches ?? []) {
+    if (m.homePairId !== pairId && m.awayPairId !== pairId) continue;
+    const isHome = m.homePairId === pairId;
+    const own = isHome ? m.homeScore : m.awayScore;
+    const oth = isHome ? m.awayScore : m.homeScore;
+    const played = isGroupMatchPlayed(m);
+    let outcome: PairMatchSummary["outcome"] = "pending";
+    if (played) {
+      outcome = (own as number) > (oth as number) ? "win" : (own as number) < (oth as number) ? "loss" : "draw";
+    }
+    out.push({
+      phase: "Grupos",
+      opponentPairId: isHome ? m.awayPairId : m.homePairId,
+      ownScore: own,
+      oppScore: oth,
+      played,
+      outcome,
+    });
+  }
+
+  // Eliminatorias
+  const b = resolveBracket(sport, pairIds);
+  const ko: { label: string; m: BracketMatch }[] = [
+    { label: "Semifinal", m: b.sf1 },
+    { label: "Semifinal", m: b.sf2 },
+    { label: "Final", m: b.final },
+    { label: "3er puesto", m: b.third },
+  ];
+  for (const { label, m } of ko) {
+    if (m.homePairId !== pairId && m.awayPairId !== pairId) continue;
+    const isHome = m.homePairId === pairId;
+    out.push({
+      phase: label,
+      opponentPairId: isHome ? m.awayPairId : m.homePairId,
+      ownScore: isHome ? m.homeScore : m.awayScore,
+      oppScore: isHome ? m.awayScore : m.homeScore,
+      played: m.played,
+      outcome: m.played ? (m.winnerPairId === pairId ? "win" : "loss") : "pending",
+    });
+  }
+
+  return out;
+}
+
 // ---------- Clasificación general ----------
 
 export function computeGeneral(sports: Sport[], pairIds: string[]): GeneralRow[] {

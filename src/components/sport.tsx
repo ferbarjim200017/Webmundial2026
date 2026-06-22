@@ -16,6 +16,7 @@ import {
   computeGroupTable,
   computeSportResult,
   resolveBracket,
+  pairMatchesInSport,
   type BracketMatch,
 } from "@/lib/tournament";
 import { setGroupResult, setKnockoutResult } from "@/lib/db";
@@ -110,10 +111,12 @@ export function GroupStandings({
   sport,
   pairs,
   players,
+  onPairClick,
 }: {
   sport: Sport;
   pairs: Map<string, Pair>;
   players: Map<string, Player>;
+  onPairClick?: (pairId: string) => void;
 }) {
   const pairIds = [...pairs.keys()];
   const table = computeGroupTable(sport, pairIds);
@@ -132,10 +135,12 @@ export function GroupStandings({
       {table.map((row) => {
         const pair = pairs.get(row.pairId);
         return (
-          <div
+          <button
             key={row.pairId}
+            type="button"
+            onClick={() => onPairClick?.(row.pairId)}
             className={cn(
-              "grid grid-cols-[1.4rem_1fr_repeat(4,1.6rem)_2rem] items-center gap-1 border-b border-white/5 px-3 py-2.5 text-xs last:border-0",
+              "grid w-full grid-cols-[1.4rem_1fr_repeat(4,1.6rem)_2rem] items-center gap-1 border-b border-white/5 px-3 py-2.5 text-left text-xs transition last:border-0 hover:bg-white/[0.04] active:bg-white/[0.06]",
               row.qualified ? "bg-brand-500/[0.06]" : "bg-rose-500/[0.05]"
             )}
           >
@@ -158,7 +163,7 @@ export function GroupStandings({
               {row.diff > 0 ? `+${row.diff}` : row.diff}
             </span>
             <span className="text-center font-extrabold tabular text-white">{row.points}</span>
-          </div>
+          </button>
         );
       })}
       <div className="flex items-center justify-between px-3 py-2 text-[10px] text-slate-500">
@@ -277,11 +282,13 @@ export function BracketSection({
   pairs,
   players,
   isAdmin,
+  onPairClick,
 }: {
   sport: Sport;
   pairs: Map<string, Pair>;
   players: Map<string, Player>;
   isAdmin: boolean;
+  onPairClick?: (pairId: string) => void;
 }) {
   const pairIds = [...pairs.keys()];
   const bracket = resolveBracket(sport, pairIds);
@@ -293,14 +300,14 @@ export function BracketSection({
 
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Semifinales</p>
-        <KnockoutRow sport={sport} k="sf1" label="SF1 · 1º vs 4º" match={bracket.sf1} pairs={pairs} players={players} isAdmin={isAdmin} />
-        <KnockoutRow sport={sport} k="sf2" label="SF2 · 2º vs 3º" match={bracket.sf2} pairs={pairs} players={players} isAdmin={isAdmin} />
+        <KnockoutRow sport={sport} k="sf1" label="SF1 · 1º vs 4º" match={bracket.sf1} pairs={pairs} players={players} isAdmin={isAdmin} onPairClick={onPairClick} />
+        <KnockoutRow sport={sport} k="sf2" label="SF2 · 2º vs 3º" match={bracket.sf2} pairs={pairs} players={players} isAdmin={isAdmin} onPairClick={onPairClick} />
       </div>
 
       <div className="grid grid-cols-1 gap-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Final y 3er puesto</p>
-        <KnockoutRow sport={sport} k="final" label="🏆 Final" match={bracket.final} pairs={pairs} players={players} isAdmin={isAdmin} highlight />
-        <KnockoutRow sport={sport} k="third" label="🥉 3er puesto" match={bracket.third} pairs={pairs} players={players} isAdmin={isAdmin} />
+        <KnockoutRow sport={sport} k="final" label="🏆 Final" match={bracket.final} pairs={pairs} players={players} isAdmin={isAdmin} onPairClick={onPairClick} highlight />
+        <KnockoutRow sport={sport} k="third" label="🥉 3er puesto" match={bracket.third} pairs={pairs} players={players} isAdmin={isAdmin} onPairClick={onPairClick} />
       </div>
     </div>
   );
@@ -314,6 +321,7 @@ function KnockoutRow({
   pairs,
   players,
   isAdmin,
+  onPairClick,
   highlight,
 }: {
   sport: Sport;
@@ -323,6 +331,7 @@ function KnockoutRow({
   pairs: Map<string, Pair>;
   players: Map<string, Player>;
   isAdmin: boolean;
+  onPairClick?: (pairId: string) => void;
   highlight?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -334,23 +343,37 @@ function KnockoutRow({
 
   return (
     <>
-      <button
-        disabled={!isAdmin || !ready}
-        onClick={() => setOpen(true)}
+      <div
         className={cn(
-          "w-full rounded-xl border px-3 py-2.5 text-left",
-          highlight ? "border-gold/30 bg-gold/[0.05]" : "border-white/10 bg-ink-850/60",
-          isAdmin && ready && "transition hover:border-brand-400/40 hover:bg-white/5"
+          "rounded-xl border px-3 py-2.5",
+          highlight ? "border-gold/30 bg-gold/[0.05]" : "border-white/10 bg-ink-850/60"
         )}
       >
         <div className="mb-1.5 flex items-center justify-between">
           <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</span>
-          {isAdmin && ready && <Pencil className="h-3.5 w-3.5 text-slate-500" />}
+          {isAdmin && ready && (
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-brand-300 transition hover:bg-white/10"
+            >
+              <Pencil className="h-3 w-3" /> Editar
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2">
-          <div className={cn("flex flex-1 justify-end", match.played && !homeWin && "opacity-55")}>
+          <button
+            type="button"
+            disabled={!match.homePairId}
+            onClick={() => match.homePairId && onPairClick?.(match.homePairId)}
+            className={cn(
+              "flex flex-1 justify-end rounded-lg p-0.5 transition disabled:cursor-default",
+              match.homePairId && "hover:bg-white/5 active:bg-white/10",
+              match.played && !homeWin && "opacity-55"
+            )}
+          >
             <PairTag pairId={match.homePairId} pairs={pairs} players={players} reverse dim={!match.homePairId} />
-          </div>
+          </button>
           <div className="flex w-[68px] shrink-0 items-center justify-center">
             {match.played ? (
               <span className="tabular text-base font-extrabold text-white">
@@ -362,11 +385,20 @@ function KnockoutRow({
               <span className="text-xs font-semibold text-slate-500">vs</span>
             )}
           </div>
-          <div className={cn("flex flex-1 justify-start", match.played && !awayWin && "opacity-55")}>
+          <button
+            type="button"
+            disabled={!match.awayPairId}
+            onClick={() => match.awayPairId && onPairClick?.(match.awayPairId)}
+            className={cn(
+              "flex flex-1 justify-start rounded-lg p-0.5 transition disabled:cursor-default",
+              match.awayPairId && "hover:bg-white/5 active:bg-white/10",
+              match.played && !awayWin && "opacity-55"
+            )}
+          >
             <PairTag pairId={match.awayPairId} pairs={pairs} players={players} dim={!match.awayPairId} />
-          </div>
+          </button>
         </div>
-      </button>
+      </div>
 
       {isAdmin && ready && (
         <ScoreEditor
@@ -413,6 +445,95 @@ function ChampionBanner({
       <p className="mt-1 text-xl font-extrabold text-white">{champ.name}</p>
       <p className="text-xs text-slate-300">{pairMembers(champ, players)}</p>
     </div>
+  );
+}
+
+// =====================================================================
+//  Modal con los partidos de una pareja en un deporte
+// =====================================================================
+export function PairResultsModal({
+  open,
+  onClose,
+  sport,
+  pairId,
+  pairs,
+  players,
+}: {
+  open: boolean;
+  onClose: () => void;
+  sport: Sport | null;
+  pairId: string | null;
+  pairs: Map<string, Pair>;
+  players: Map<string, Player>;
+}) {
+  const pair = pairId ? pairs.get(pairId) : undefined;
+  const pairIds = [...pairs.keys()];
+  const matches = sport && pairId ? pairMatchesInSport(sport, pairId, pairIds) : [];
+  const wins = matches.filter((m) => m.outcome === "win").length;
+  const losses = matches.filter((m) => m.outcome === "loss").length;
+  const played = matches.filter((m) => m.played).length;
+
+  return (
+    <Modal open={open && !!pair} onClose={onClose} title={pair?.name ?? "Pareja"}>
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <PairBadge colorKey={pair?.color} initials={pair ? pairInitials(pair, players) : "?"} size={44} />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-white">{pairMembers(pair, players)}</p>
+            <p className="text-xs text-slate-400">
+              {sport?.emoji} {sport?.name}
+              {played > 0 && <span className="ml-1">· {wins}G · {losses}P</span>}
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          {matches.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-white/10 px-4 py-6 text-center text-sm text-slate-400">
+              Esta pareja no tiene partidos en este deporte.
+            </p>
+          ) : (
+            matches.map((m, i) => {
+              const opp = m.opponentPairId ? pairs.get(m.opponentPairId) : undefined;
+              return (
+                <div
+                  key={i}
+                  className="flex items-center gap-2 rounded-xl border border-white/10 bg-ink-900/60 px-3 py-2.5"
+                >
+                  <span className="chip shrink-0 bg-white/5 text-[10px] text-slate-300">{m.phase}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm text-slate-300">
+                    vs <span className="font-semibold text-white">{opp?.name ?? "Pendiente"}</span>
+                  </span>
+                  {m.played ? (
+                    <span className="tabular text-sm font-extrabold text-white">
+                      {m.ownScore} · {m.oppScore}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-slate-500">—</span>
+                  )}
+                  <OutcomeChip outcome={m.outcome} />
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function OutcomeChip({ outcome }: { outcome: "win" | "loss" | "draw" | "pending" }) {
+  if (outcome === "pending") return <span className="w-5 shrink-0" />;
+  const map = {
+    win: { t: "G", cls: "bg-brand-500/15 text-brand-300" },
+    loss: { t: "P", cls: "bg-rose-500/15 text-rose-300" },
+    draw: { t: "E", cls: "bg-slate-500/20 text-slate-300" },
+  } as const;
+  const c = map[outcome];
+  return (
+    <span className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold", c.cls)}>
+      {c.t}
+    </span>
   );
 }
 
