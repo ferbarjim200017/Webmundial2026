@@ -32,6 +32,8 @@ export interface Pair {
   /** Color identificativo (clave de PAIR_COLORS). */
   color: string;
   order: number;
+  /** Foto de perfil (data URL JPEG comprimido). Opcional. */
+  photo?: string | null;
 }
 
 /** Partido de la fase de grupos (todos contra todos). */

@@ -34,7 +34,7 @@ import {
   setGrandFinalTiebreakResult,
   clearGrandFinalTiebreak,
 } from "@/lib/db";
-import { PairBadge, Modal } from "./ui";
+import { PairBadge, Modal, PhotoLightbox } from "./ui";
 
 // ---------- Estado visual ----------
 export function statusBadge(status: SportStatus) {
@@ -109,7 +109,7 @@ function PairTag({
         dim && "opacity-45"
       )}
     >
-      <PairBadge colorKey={pair?.color} initials={pair ? pairInitials(pair, players) : "?"} size={30} />
+      <PairBadge colorKey={pair?.color} initials={pair ? pairInitials(pair, players) : "?"} size={30} photoUrl={pair?.photo} />
       <div className="min-w-0">
         <p className="truncate text-sm font-semibold text-white">{pair?.name ?? "Pendiente"}</p>
         <p className="truncate text-[10px] text-slate-400">{pair ? pairMembers(pair, players) : "—"}</p>
@@ -167,7 +167,7 @@ export function GroupStandings({
               {row.rank}
             </span>
             <div className="flex min-w-0 items-center gap-2">
-              <PairBadge colorKey={pair?.color} initials={pair ? pairInitials(pair, players) : "?"} size={26} />
+              <PairBadge colorKey={pair?.color} initials={pair ? pairInitials(pair, players) : "?"} size={26} photoUrl={pair?.photo} />
               <span className="truncate font-semibold text-white">{pair?.name ?? "—"}</span>
             </div>
             <span className="text-center tabular text-slate-300">{row.played}</span>
@@ -545,12 +545,15 @@ export function PairResultsModal({
   const wins = matches.filter((m) => m.outcome === "win").length;
   const losses = matches.filter((m) => m.outcome === "loss").length;
   const played = matches.filter((m) => m.played).length;
+  const [viewer, setViewer] = useState(false);
 
   return (
     <Modal open={open && !!pair} onClose={onClose} title={pair?.name ?? "Pareja"}>
       <div className="space-y-4">
         <div className="flex items-center gap-3">
-          <PairBadge colorKey={pair?.color} initials={pair ? pairInitials(pair, players) : "?"} size={44} />
+          <button type="button" onClick={() => pair?.photo && setViewer(true)} className="shrink-0" disabled={!pair?.photo}>
+            <PairBadge colorKey={pair?.color} initials={pair ? pairInitials(pair, players) : "?"} size={44} photoUrl={pair?.photo} />
+          </button>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-white">{pairMembers(pair, players)}</p>
             <p className="text-xs text-slate-400">
@@ -559,6 +562,7 @@ export function PairResultsModal({
             </p>
           </div>
         </div>
+        <PhotoLightbox open={viewer} onClose={() => setViewer(false)} src={pair?.photo} title={pair?.name} subtitle={pairMembers(pair, players)} />
 
         <div className="space-y-2">
           {matches.length === 0 ? (
@@ -901,7 +905,7 @@ function Qualifiers({
           return (
             <div key={pid} className="flex items-center gap-2">
               <span className="w-4 shrink-0 text-center text-xs font-bold text-gold">{i + 1}º</span>
-              <PairBadge colorKey={pair?.color} initials={pair ? pairInitials(pair, players) : "?"} size={26} />
+              <PairBadge colorKey={pair?.color} initials={pair ? pairInitials(pair, players) : "?"} size={26} photoUrl={pair?.photo} />
               <span className="truncate text-sm font-semibold text-white">{pair?.name ?? "—"}</span>
             </div>
           );
@@ -1016,18 +1020,22 @@ export function PairSportsModal({
       })
     : [];
   const total = rows.reduce((a, r) => a + r.pts, 0);
+  const [viewer, setViewer] = useState(false);
 
   return (
     <Modal open={open && !!pair} onClose={onClose} title={pair?.name ?? "Pareja"}>
       <div className="space-y-4">
         <div className="flex items-center gap-3">
-          <PairBadge colorKey={pair?.color} initials={pair ? pairInitials(pair, players) : "?"} size={44} />
+          <button type="button" onClick={() => pair?.photo && setViewer(true)} className="shrink-0" disabled={!pair?.photo}>
+            <PairBadge colorKey={pair?.color} initials={pair ? pairInitials(pair, players) : "?"} size={44} photoUrl={pair?.photo} />
+          </button>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-white">{pairMembers(pair, players)}</p>
             <p className="text-xs text-slate-400">Puntos totales</p>
           </div>
           <span className="text-2xl font-extrabold tabular text-white">{total}</span>
         </div>
+        <PhotoLightbox open={viewer} onClose={() => setViewer(false)} src={pair?.photo} title={pair?.name} subtitle={pairMembers(pair, players)} />
 
         <div className="space-y-2">
           {rows.length === 0 ? (

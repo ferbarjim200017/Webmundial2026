@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Rocket,
   Users,
@@ -12,6 +12,7 @@ import {
   Check,
   RefreshCw,
   RotateCcw,
+  Camera,
 } from "lucide-react";
 import { Protected } from "@/components/AppShell";
 import { Card, EmptyState, FullScreenLoader, Modal, PairBadge, Spinner } from "@/components/ui";
@@ -26,6 +27,8 @@ import {
   updatePlayerName,
   savePair,
   deletePair,
+  setPairPhoto,
+  removePairPhoto,
   addSport,
   updateSportMeta,
   deleteSport,
@@ -34,6 +37,7 @@ import {
   setUserRole,
   setUserPlayer,
 } from "@/lib/db";
+import { fileToAvatarDataUrl } from "@/lib/image";
 import {
   PAIR_COLORS,
   PAIR_COLOR_KEYS,
@@ -274,7 +278,7 @@ function PairsSection() {
       <div className="space-y-2">
         {pairs.map((pair) => (
           <div key={pair.id} className="flex items-center gap-3 rounded-xl border border-white/10 bg-ink-850/60 p-3">
-            <PairBadge colorKey={pair.color} initials={pairInitials(pair, playersMap)} size={40} />
+            <PairBadge colorKey={pair.color} initials={pairInitials(pair, playersMap)} size={40} photoUrl={pair.photo} />
             <div className="min-w-0 flex-1">
               <p className="truncate font-semibold text-white">{pair.name}</p>
               <p className="truncate text-xs text-slate-400">{pairMembers(pair, playersMap)}</p>
@@ -329,8 +333,11 @@ function PairEditor({
   const [color, setColor] = useState(pair?.color ?? PAIR_COLOR_KEYS[0]);
   const [p1, setP1] = useState(pair?.player1Id ?? "");
   const [p2, setP2] = useState(pair?.player2Id ?? "");
+  const [photo, setPhoto] = useState<string | null>(pair?.photo ?? null);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   // Reinicia el formulario cuando cambia la pareja editada
   const key = pair?.id ?? "new";
@@ -341,8 +348,36 @@ function PairEditor({
     setColor(pair?.color ?? PAIR_COLOR_KEYS[0]);
     setP1(pair?.player1Id ?? "");
     setP2(pair?.player2Id ?? "");
+    setPhoto(pair?.photo ?? null);
     setErr(null);
   }
+
+  const onPhotoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !pair) return;
+    setPhotoBusy(true);
+    try {
+      const dataUrl = await fileToAvatarDataUrl(file);
+      await setPairPhoto(pair.id, dataUrl);
+      setPhoto(dataUrl);
+    } catch {
+      setErr("No se pudo subir la foto.");
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const onPhotoRemove = async () => {
+    if (!pair) return;
+    setPhotoBusy(true);
+    try {
+      await removePairPhoto(pair.id);
+      setPhoto(null);
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
 
   const save = async () => {
     setErr(null);
@@ -369,6 +404,27 @@ function PairEditor({
   return (
     <Modal open={open} onClose={onClose} title={pair ? "Editar pareja" : "Nueva pareja"}>
       <div className="space-y-4">
+        {pair && (
+          <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-ink-900/50 p-3">
+            <PairBadge colorKey={color} initials={pairInitials(pair, byId(players))} size={48} photoUrl={photo} />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-white">Foto de la pareja</p>
+              <div className="mt-1 flex gap-3 text-[11px] font-semibold">
+                <button onClick={() => fileRef.current?.click()} className="text-brand-300 hover:text-brand-200">
+                  {photoBusy ? "Subiendo…" : photo ? "Cambiar" : "Subir"}
+                </button>
+                {photo && (
+                  <button onClick={onPhotoRemove} className="text-slate-500 hover:text-slate-300">
+                    Quitar
+                  </button>
+                )}
+              </div>
+            </div>
+            {photoBusy && <Spinner className="h-4 w-4 text-brand-300" />}
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPhotoFile} />
+          </div>
+        )}
+
         <div>
           <label className="mb-1 block text-xs font-semibold text-slate-400">Nombre</label>
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Los Cracks" />

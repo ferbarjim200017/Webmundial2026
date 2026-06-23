@@ -37,6 +37,7 @@ export function Podium({
               colorKey={pair?.color}
               initials={pairInitials(pair, players)}
               size={isFirst ? 60 : 46}
+              photoUrl={pair?.photo}
             />
             <p className="mt-1.5 line-clamp-1 text-center text-xs font-bold text-white">
               {pair?.name ?? "—"}
@@ -100,7 +101,7 @@ export function GeneralTable({
             >
               {row.rank}
             </span>
-            <PairBadge colorKey={pair?.color} initials={pairInitials(pair, players)} size={38} />
+            <PairBadge colorKey={pair?.color} initials={pairInitials(pair, players)} size={38} photoUrl={pair?.photo} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-white">{pair?.name ?? "—"}</p>
               <p className="truncate text-xs text-slate-400">{pairMembers(pair, players)}</p>

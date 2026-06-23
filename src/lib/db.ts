@@ -169,6 +169,16 @@ export async function deletePair(id: string) {
   await deleteDoc(doc(db, "pairs", id));
 }
 
+/** Guarda la foto de perfil de una pareja (data URL). */
+export async function setPairPhoto(id: string, photo: string) {
+  await updateDoc(doc(db, "pairs", id), { photo });
+}
+
+/** Quita la foto de perfil de una pareja. */
+export async function removePairPhoto(id: string) {
+  await updateDoc(doc(db, "pairs", id), { photo: null });
+}
+
 // ---------------------------------------------------------------------
 //  Deportes
 // ---------------------------------------------------------------------

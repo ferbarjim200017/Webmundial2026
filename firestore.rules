@@ -30,10 +30,33 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // ---------- Datos del torneo (solo admin escribe) ----------
+    // Jugador vinculado al usuario actual.
+    function myPlayerId() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.playerId
+        : '';
+    }
+    // ¿El usuario forma parte de esta pareja?
+    function isInPair() {
+      return isSignedIn()
+        && (resource.data.player1Id == myPlayerId() || resource.data.player2Id == myPlayerId());
+    }
+    // ¿El cambio afecta SOLO al campo de la foto?
+    function onlyPhotoChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['photo']);
+    }
+
+    // ---------- Datos del torneo ----------
     match /players/{id} { allow read: if isSignedIn(); allow write: if isAdmin(); }
-    match /pairs/{id}   { allow read: if isSignedIn(); allow write: if isAdmin(); }
     match /sports/{id}  { allow read: if isSignedIn(); allow write: if isAdmin(); }
     match /config/{id}  { allow read: if isSignedIn(); allow write: if isAdmin(); }
+
+    // Parejas: solo admin crea/borra/edita; cada miembro puede cambiar la
+    // FOTO de su propia pareja (y nada más).
+    match /pairs/{id} {
+      allow read: if isSignedIn();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (isInPair() && onlyPhotoChanged());
+    }
   }
 }

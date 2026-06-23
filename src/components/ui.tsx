@@ -76,38 +76,104 @@ export function EmptyState({
   );
 }
 
-/** Avatar circular con gradiente del color de la pareja. */
+/** Avatar circular: foto de la pareja si la tiene, o iniciales con gradiente. */
 export function PairBadge({
   colorKey,
   initials,
   size = 40,
   rank,
+  photoUrl,
 }: {
   colorKey?: string;
   initials: string;
   size?: number;
   rank?: number;
+  photoUrl?: string | null;
 }) {
   const c = pairColor(colorKey);
   return (
     <span
-      className="relative inline-flex shrink-0 items-center justify-center rounded-full font-extrabold text-white shadow-md ring-2"
+      className="relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-extrabold text-white shadow-md ring-2"
       style={{
         width: size,
         height: size,
         fontSize: size * 0.36,
-        backgroundImage: `linear-gradient(135deg, ${c.from}, ${c.to})`,
+        backgroundImage: photoUrl ? undefined : `linear-gradient(135deg, ${c.from}, ${c.to})`,
         // @ts-expect-error css var
         "--tw-ring-color": `${c.ring}66`,
       }}
     >
-      {initials}
+      {photoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={photoUrl} alt="" className="h-full w-full object-cover" />
+      ) : (
+        initials
+      )}
       {rank && (
         <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-ink-900 text-[10px] font-bold text-slate-200 ring-1 ring-white/10">
           {rank}
         </span>
       )}
     </span>
+  );
+}
+
+/** Visor de foto a pantalla completa (estilo WhatsApp). */
+export function PhotoLightbox({
+  open,
+  onClose,
+  src,
+  title,
+  subtitle,
+}: {
+  open: boolean;
+  onClose: () => void;
+  src?: string | null;
+  title?: string;
+  subtitle?: string;
+}) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
+  if (!open || !mounted || !src) return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[110] flex flex-col bg-black/95 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div className="flex items-center justify-between p-4">
+        <div className="min-w-0">
+          {title && <p className="truncate text-base font-bold text-white">{title}</p>}
+          {subtitle && <p className="truncate text-xs text-slate-400">{subtitle}</p>}
+        </div>
+        <button
+          onClick={onClose}
+          className="rounded-full p-2 text-2xl leading-none text-white/80 hover:bg-white/10"
+          aria-label="Cerrar"
+        >
+          ✕
+        </button>
+      </div>
+      <div className="flex flex-1 items-center justify-center p-4">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt={title ?? ""}
+          onClick={(e) => e.stopPropagation()}
+          className="max-h-[80vh] w-auto max-w-full animate-pop-in rounded-2xl object-contain shadow-2xl"
+        />
+      </div>
+    </div>,
+    document.body
   );
 }
 
