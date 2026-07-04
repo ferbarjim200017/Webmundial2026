@@ -33,10 +33,13 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+        display: ["var(--font-display)", "var(--font-sans)", "system-ui", "sans-serif"],
       },
       boxShadow: {
         glow: "0 0 0 1px rgba(16,185,129,0.25), 0 8px 30px -8px rgba(16,185,129,0.35)",
+        "glow-lg": "0 0 0 1px rgba(16,185,129,0.3), 0 12px 45px -10px rgba(16,185,129,0.5)",
         card: "0 1px 0 0 rgba(255,255,255,0.04) inset, 0 12px 30px -16px rgba(0,0,0,0.7)",
+        gold: "0 0 25px -5px rgba(251,191,36,0.45)",
       },
       keyframes: {
         "fade-up": {
@@ -50,10 +53,20 @@ const config: Config = {
         shimmer: {
           "100%": { transform: "translateX(100%)" },
         },
+        float: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-6px)" },
+        },
+        shine: {
+          "0%": { transform: "translateX(-120%) skewX(-15deg)" },
+          "60%, 100%": { transform: "translateX(220%) skewX(-15deg)" },
+        },
       },
       animation: {
         "fade-up": "fade-up 0.4s ease-out both",
         "pop-in": "pop-in 0.25s ease-out both",
+        float: "float 3.5s ease-in-out infinite",
+        shine: "shine 3s ease-in-out infinite",
       },
     },
   },

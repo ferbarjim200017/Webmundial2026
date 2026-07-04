@@ -49,9 +49,12 @@ export function SectionTitle({
 }) {
   return (
     <div className="mb-3 flex items-end justify-between gap-3">
-      <div>
-        <h2 className="text-lg font-bold tracking-tight text-white">{title}</h2>
-        {subtitle && <p className="text-xs text-slate-400">{subtitle}</p>}
+      <div className="flex items-start gap-2.5">
+        <span className="mt-1 block h-8 w-1 rounded-full bg-gradient-to-b from-brand-300 to-brand-600" />
+        <div>
+          <h2 className="font-display text-xl font-extrabold tracking-tight text-white">{title}</h2>
+          {subtitle && <p className="text-xs text-slate-400">{subtitle}</p>}
+        </div>
       </div>
       {right}
     </div>
@@ -68,10 +71,14 @@ export function EmptyState({
   hint?: string;
 }) {
   return (
-    <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-6 py-10 text-center">
-      {icon && <div className="text-3xl opacity-80">{icon}</div>}
-      <p className="font-semibold text-slate-200">{title}</p>
-      {hint && <p className="max-w-xs text-sm text-slate-400">{hint}</p>}
+    <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-6 py-12 text-center">
+      {icon && (
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 text-2xl text-slate-400 ring-1 ring-white/10">
+          {icon}
+        </div>
+      )}
+      <p className="font-display text-base font-bold text-slate-200">{title}</p>
+      {hint && <p className="max-w-xs text-sm leading-relaxed text-slate-400">{hint}</p>}
     </div>
   );
 }
@@ -245,7 +252,7 @@ export function Modal({
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 flex max-h-[88dvh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-ink-850 shadow-2xl animate-fade-up sm:rounded-3xl">
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-          <h3 className="text-base font-bold text-white">{title}</h3>
+          <h3 className="font-display text-base font-bold text-white">{title}</h3>
           <button
             onClick={onClose}
             className="rounded-full p-1.5 text-slate-400 hover:bg-white/10 hover:text-white"

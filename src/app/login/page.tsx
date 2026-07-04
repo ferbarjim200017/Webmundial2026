@@ -74,20 +74,25 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-10">
-      <div className="mb-8 text-center animate-fade-up">
-        <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-brand-400 to-brand-600 text-4xl shadow-glow">
+    <div className="relative mx-auto flex min-h-screen max-w-md flex-col justify-center overflow-hidden px-6 py-10">
+      {/* Orbes de luz de fondo */}
+      <div className="pointer-events-none absolute -top-24 -left-20 h-72 w-72 rounded-full bg-brand-500/20 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-28 -right-16 h-80 w-80 rounded-full bg-sky-500/15 blur-3xl" />
+
+      <div className="relative mb-8 text-center animate-fade-up">
+        <div className="mx-auto mb-4 flex h-20 w-20 animate-float items-center justify-center rounded-3xl bg-gradient-to-br from-brand-400 to-brand-600 text-4xl shadow-glow-lg ring-1 ring-white/20">
           🏆
         </div>
-        <h1 className="bg-gradient-to-r from-brand-300 to-sky-300 bg-clip-text text-3xl font-extrabold tracking-tight text-transparent">
-          {APP_NAME}
+        <p className="section-label">Torneo entre amigos</p>
+        <h1 className="mt-1 font-display text-4xl font-extrabold tracking-tight text-white">
+          <span className="text-gradient">{APP_NAME}</span>
         </h1>
         <p className="mt-2 text-sm text-slate-400">
           Inicia sesión para ver y seguir el torneo.
         </p>
       </div>
 
-      <div className="card space-y-4 p-5 animate-fade-up">
+      <div className="card relative space-y-4 p-5 animate-fade-up">
         <button onClick={google} disabled={busy !== null} className="btn-ghost w-full">
           {busy === "google" ? (
             <Spinner className="h-5 w-5" />

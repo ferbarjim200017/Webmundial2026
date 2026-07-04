@@ -52,16 +52,22 @@ function GeneralStandings() {
   }
 
   return (
-    <div className="space-y-5 animate-fade-up">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-extrabold tracking-tight text-white">Clasificación general</h1>
-          <p className="text-xs text-slate-400">
-            Individual · {sports.length} deporte{sports.length === 1 ? "" : "s"} · {finished} finalizado{finished === 1 ? "" : "s"}
-          </p>
-        </div>
-        <div className="rounded-full bg-brand-500/15 px-3 py-1.5 text-xs font-semibold text-brand-300">
-          {players.length} jugadores
+    <div className="space-y-5 stagger">
+      <div>
+        <p className="section-label">Clasificación individual</p>
+        <h1 className="mt-0.5 font-display text-[28px] font-extrabold leading-tight tracking-tight text-white">
+          Tabla <span className="text-gradient">General</span>
+        </h1>
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          <span className="chip border border-white/10 bg-white/5 text-slate-300">
+            🏟️ {sports.length} deporte{sports.length === 1 ? "" : "s"}
+          </span>
+          <span className="chip border border-brand-400/20 bg-brand-500/10 text-brand-300">
+            ✅ {finished} finalizado{finished === 1 ? "" : "s"}
+          </span>
+          <span className="chip border border-white/10 bg-white/5 text-slate-300">
+            👥 {players.length} jugadores
+          </span>
         </div>
       </div>
 

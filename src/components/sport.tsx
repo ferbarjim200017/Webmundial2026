@@ -64,14 +64,14 @@ export function SportCard({
   return (
     <Link
       href={`/deportes/${sport.id}`}
-      className="card flex items-center gap-3 p-4 transition hover:border-brand-400/40 hover:bg-white/5"
+      className="card group flex items-center gap-3.5 p-4 transition hover:border-brand-400/40"
     >
-      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/5 text-2xl">
+      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-white/10 to-white/[0.03] text-[28px] ring-1 ring-white/10 transition group-hover:scale-105 group-hover:ring-brand-400/40">
         {sport.emoji}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate font-bold text-white">{sport.name}</p>
-        <div className="mt-1 flex items-center gap-2">
+        <p className="truncate font-display text-base font-bold text-white">{sport.name}</p>
+        <div className="mt-1.5 flex items-center gap-2">
           <span className={cn("chip", badge.cls)}>{badge.text}</span>
           {champ && (
             <span className="flex items-center gap-1 truncate text-xs text-slate-400">
@@ -80,7 +80,9 @@ export function SportCard({
           )}
         </div>
       </div>
-      <ChevronRight className="h-5 w-5 shrink-0 text-slate-500" />
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/5 ring-1 ring-white/10 transition group-hover:bg-brand-500/15 group-hover:ring-brand-400/40">
+        <ChevronRight className="h-4 w-4 text-slate-400 transition group-hover:text-brand-300" />
+      </span>
     </Link>
   );
 }
@@ -509,13 +511,13 @@ function ChampionBanner({
   const c = pairColor(champ.color);
   return (
     <div
-      className="relative overflow-hidden rounded-2xl border border-gold/30 p-4 text-center"
-      style={{ backgroundImage: `linear-gradient(135deg, ${c.from}30, transparent)` }}
+      className="shine relative overflow-hidden rounded-2xl border border-gold/40 p-4 text-center shadow-gold"
+      style={{ backgroundImage: `linear-gradient(135deg, ${c.from}30, rgba(251,191,36,0.06))` }}
     >
-      <Trophy className={cn("mx-auto mb-1 text-gold drop-shadow-[0_0_10px_rgba(251,191,36,0.6)]", big ? "h-9 w-9" : "h-7 w-7")} />
-      <p className="text-[11px] font-semibold uppercase tracking-widest text-gold">{title}</p>
-      <p className={cn("mt-1 font-extrabold text-white", big ? "text-2xl" : "text-xl")}>{champ.name}</p>
-      <p className="text-xs text-slate-300">{pairMembers(champ, players)}</p>
+      <Trophy className={cn("mx-auto mb-1 animate-float text-gold drop-shadow-[0_0_12px_rgba(251,191,36,0.7)]", big ? "h-10 w-10" : "h-7 w-7")} />
+      <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-gold">{title}</p>
+      <p className={cn("mt-1 font-display font-extrabold", big ? "text-3xl text-gradient-gold" : "text-xl text-white")}>{champ.name}</p>
+      <p className="mt-0.5 text-xs text-slate-300">{pairMembers(champ, players)}</p>
     </div>
   );
 }

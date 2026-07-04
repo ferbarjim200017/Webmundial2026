@@ -151,8 +151,8 @@ function BottomNav() {
   ];
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-ink-900/90 backdrop-blur-lg safe-bottom">
-      <div className="mx-auto flex max-w-md items-stretch justify-around px-2 pt-2">
+    <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="pointer-events-auto mx-auto flex max-w-md items-stretch justify-around gap-1 rounded-2xl border border-white/10 bg-ink-900/85 p-1.5 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.8)] backdrop-blur-xl">
         {items.map((it) => {
           const active = it.exact ? pathname === it.href : pathname.startsWith(it.href);
           const Icon = it.icon;
@@ -161,11 +161,13 @@ function BottomNav() {
               key={it.href}
               href={it.href}
               className={cn(
-                "flex flex-1 flex-col items-center gap-1 rounded-xl py-1.5 text-[11px] font-medium transition",
-                active ? "text-brand-300" : "text-slate-500 hover:text-slate-300"
+                "flex flex-1 flex-col items-center gap-0.5 rounded-xl py-2 text-[10px] font-semibold transition-all",
+                active
+                  ? "bg-gradient-to-b from-brand-500/25 to-brand-500/5 text-brand-200 shadow-[inset_0_1px_0_rgba(110,231,183,0.25)]"
+                  : "text-slate-500 hover:text-slate-300"
               )}
             >
-              <Icon className={cn("h-5 w-5", active && "drop-shadow-[0_0_8px_rgba(52,211,153,0.6)]")} />
+              <Icon className={cn("h-5 w-5", active && "drop-shadow-[0_0_10px_rgba(52,211,153,0.7)]")} />
               {it.label}
             </Link>
           );
@@ -177,13 +179,22 @@ function BottomNav() {
 
 function Header() {
   return (
-    <header className="sticky top-0 z-30 border-b border-white/5 bg-ink-950/70 backdrop-blur-lg">
-      <div className="mx-auto flex max-w-md items-center gap-2 px-4 py-3">
-        <span className="text-xl">🏆</span>
-        <span className="bg-gradient-to-r from-brand-300 to-sky-300 bg-clip-text text-base font-extrabold tracking-tight text-transparent">
-          {APP_NAME}
+    <header className="sticky top-0 z-30 bg-ink-950/75 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-md items-center gap-2.5 px-4 py-3">
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 text-lg shadow-glow ring-1 ring-white/20">
+          🏆
         </span>
+        <div className="leading-tight">
+          <span className="block font-display text-base font-extrabold tracking-tight text-white">
+            {APP_NAME}
+          </span>
+          <span className="block text-[10px] font-semibold uppercase tracking-[0.22em] text-brand-300/80">
+            Torneo entre amigos
+          </span>
+        </div>
       </div>
+      {/* Línea de acento degradada */}
+      <div className="h-px w-full bg-gradient-to-r from-transparent via-brand-400/40 to-transparent" />
     </header>
   );
 }

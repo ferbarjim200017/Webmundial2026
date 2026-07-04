@@ -60,12 +60,12 @@ function SportDetail({ sportId }: { sportId: string }) {
     <div className="space-y-4 animate-fade-up">
       <BackLink />
 
-      <div className="flex items-center gap-3">
-        <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 text-3xl">
+      <div className="flex items-center gap-3.5">
+        <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-white/10 to-white/[0.03] text-4xl ring-1 ring-white/10">
           {sport.emoji}
         </span>
         <div>
-          <h1 className="text-xl font-extrabold tracking-tight text-white">{sport.name}</h1>
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-white">{sport.name}</h1>
           <span className={cn("chip mt-1", badge.cls)}>{badge.text}</span>
         </div>
       </div>

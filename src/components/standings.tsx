@@ -35,30 +35,39 @@ export function Podium({
         const isFirst = row.rank === 1;
         return (
           <div key={row.playerId} className="flex flex-1 flex-col items-center">
-            {isFirst && <Crown className="mb-1 h-5 w-5 text-gold drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]" />}
-            <PlayerBadge
-              name={playerName(players, row.playerId)}
-              colorKey={playerColorKey(players, row.playerId)}
-              size={isFirst ? 60 : 46}
-            />
+            {isFirst && (
+              <Crown className="mb-1 h-6 w-6 animate-float text-gold drop-shadow-[0_0_10px_rgba(251,191,36,0.8)]" />
+            )}
+            <div className={cn("relative", isFirst && "drop-shadow-[0_0_18px_rgba(251,191,36,0.35)]")}>
+              <PlayerBadge
+                name={playerName(players, row.playerId)}
+                colorKey={playerColorKey(players, row.playerId)}
+                size={isFirst ? 64 : 46}
+              />
+            </div>
             <p className="mt-1.5 line-clamp-1 text-center text-xs font-bold text-white">
               {playerName(players, row.playerId)}
             </p>
             <div
               className={cn(
-                "mt-1.5 flex w-full items-start justify-center rounded-t-xl pt-2 font-extrabold tabular",
-                heights[row.rank]
+                "relative mt-1.5 flex w-full items-start justify-center overflow-hidden rounded-t-xl pt-2 font-extrabold tabular",
+                heights[row.rank],
+                isFirst && "shine"
               )}
               style={{
-                backgroundImage: `linear-gradient(180deg, ${c.from}40, ${c.from}10)`,
+                backgroundImage: `linear-gradient(180deg, ${c.from}4d, ${c.from}0d)`,
                 borderTop: `2px solid ${MEDAL[row.rank - 1]}`,
+                boxShadow: isFirst ? "0 -12px 30px -12px rgba(251,191,36,0.35)" : undefined,
               }}
             >
               <div className="text-center">
-                <div className="text-lg" style={{ color: MEDAL[row.rank - 1] }}>
+                <div className="font-display text-xl leading-none" style={{ color: MEDAL[row.rank - 1] }}>
                   {row.rank}º
                 </div>
-                <div className="text-xs text-slate-300">{row.points} pts</div>
+                <div className="mt-1 font-display text-sm text-white">
+                  {row.points}
+                  <span className="ml-0.5 text-[10px] font-semibold text-slate-400">pts</span>
+                </div>
               </div>
             </div>
           </div>
@@ -90,9 +99,13 @@ export function GeneralTable({
               "flex w-full items-center gap-3 px-3.5 py-3 text-left transition hover:bg-white/[0.05] active:bg-white/[0.07]",
               podium && "bg-white/[0.03]"
             )}
+            style={podium ? { boxShadow: `inset 3px 0 0 ${MEDAL[row.rank - 1]}` } : undefined}
           >
             <span
-              className="w-5 shrink-0 text-center text-sm font-bold tabular"
+              className={cn(
+                "flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-sm font-bold tabular",
+                podium ? "bg-white/5 font-display" : ""
+              )}
               style={{ color: podium ? MEDAL[row.rank - 1] : "#64748b" }}
             >
               {row.rank}
@@ -113,7 +126,7 @@ export function GeneralTable({
               {row.bronze > 0 && <Medal emoji="🥉" n={row.bronze} />}
             </div>
             <div className="ml-1 w-12 shrink-0 text-right">
-              <span className="text-xl font-extrabold tabular text-white">{row.points}</span>
+              <span className="font-display text-xl font-extrabold tabular text-white">{row.points}</span>
               <span className="block text-[10px] uppercase tracking-wide text-slate-500">pts</span>
             </div>
           </button>

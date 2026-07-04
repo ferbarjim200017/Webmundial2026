@@ -72,7 +72,7 @@ function AdminGuard() {
 
   return (
     <div className="space-y-4 animate-fade-up">
-      <h1 className="text-xl font-extrabold tracking-tight text-white">Administración</h1>
+      <h1 className="font-display text-2xl font-extrabold tracking-tight text-white">Administración</h1>
 
       <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
         {TABS.map((t) => {

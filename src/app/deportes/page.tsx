@@ -34,7 +34,7 @@ function SportsList() {
           hint="Un administrador puede inicializar el torneo o añadir deportes desde la pestaña Admin."
         />
       ) : (
-        <div className="space-y-2.5">
+        <div className="space-y-2.5 stagger">
           {sports.map((s) => (
             <SportCard
               key={s.id}
