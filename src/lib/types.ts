@@ -21,6 +21,8 @@ export interface Player {
   id: string;
   name: string;
   order: number;
+  /** Género, para formar parejas mixtas ("M" | "F"). */
+  gender?: "M" | "F";
 }
 
 /** Pareja de un deporte concreto (las parejas varían entre deportes). */

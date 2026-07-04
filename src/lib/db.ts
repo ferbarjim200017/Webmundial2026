@@ -23,6 +23,7 @@ import {
   DEFAULT_PAIR_COLORS,
   DEFAULT_SPORTS,
   PLAYER_NAMES,
+  genderOf,
 } from "./constants";
 import { emptyKnockout, roundRobin } from "./tournament";
 import type { AppUser, GrandFinal, Pair, Player, Sport } from "./types";
@@ -99,41 +100,74 @@ export function useGrandFinal(): { data: GrandFinal | null; loading: boolean } {
 //  Inicialización del torneo
 // ---------------------------------------------------------------------
 
-/** Crea los 10 jugadores (si no existen). */
+/** Crea los 10 jugadores con su género (si no existen). */
 export async function seedPlayers(): Promise<void> {
   const batch = writeBatch(db);
   PLAYER_NAMES.forEach((name, i) => {
     const ref = doc(collection(db, "players"));
-    batch.set(ref, { name, order: i });
+    batch.set(ref, { name, order: i, gender: genderOf(name) });
   });
   await batch.commit();
 }
 
+/** Baraja una copia del array (Fisher-Yates). */
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 /**
- * Añade a un lote un deporte con sus 5 parejas por defecto
- * ((1,2)(3,4)(5,6)(7,8)(9,10)) y la fase de grupos generada.
+ * Forma parejas MIXTAS (un chico + una chica) de forma aleatoria. Si hay
+ * desequilibrio de géneros, los sobrantes se emparejan entre sí.
+ */
+function mixedPairs(males: string[], females: string[]): [string, string][] {
+  const m = shuffle(males);
+  const f = shuffle(females);
+  const pairs: [string, string][] = [];
+  const n = Math.min(m.length, f.length);
+  for (let i = 0; i < n; i++) pairs.push([m[i], f[i]]);
+  const rest = [...m.slice(n), ...f.slice(n)];
+  for (let i = 0; i + 1 < rest.length; i += 2) pairs.push([rest[i], rest[i + 1]]);
+  return pairs;
+}
+
+function playerGender(p: Player): "M" | "F" {
+  return p.gender ?? genderOf(p.name);
+}
+
+/**
+ * Añade a un lote un deporte con sus parejas MIXTAS aleatorias y la fase de
+ * grupos generada. Cada llamada baraja por separado → parejas distintas en
+ * cada deporte.
  */
 function buildSport(
   batch: WriteBatch,
   meta: { name: string; emoji: string },
   order: number,
-  playerIds: string[]
+  players: Player[]
 ): void {
   const sportRef = doc(collection(db, "sports"));
+  const males = players.filter((p) => playerGender(p) === "M").map((p) => p.id);
+  const females = players.filter((p) => playerGender(p) === "F").map((p) => p.id);
+  const pairing = mixedPairs(males, females);
   const pairIds: string[] = [];
 
-  for (let p = 0; p < 5; p++) {
+  pairing.forEach(([a, b], p) => {
     const pairRef = doc(collection(db, "pairs"));
     pairIds.push(pairRef.id);
     batch.set(pairRef, {
       sportId: sportRef.id,
       name: `Pareja ${p + 1}`,
-      player1Id: playerIds[p * 2] ?? "",
-      player2Id: playerIds[p * 2 + 1] ?? "",
+      player1Id: a,
+      player2Id: b,
       color: DEFAULT_PAIR_COLORS[p] ?? "emerald",
       order: p,
     });
-  }
+  });
 
   batch.set(sportRef, {
     name: meta.name,
@@ -145,10 +179,10 @@ function buildSport(
   });
 }
 
-/** Crea los deportes por defecto, cada uno con sus 5 parejas y su liga. */
-export async function seedSports(playerIds: string[]): Promise<void> {
+/** Crea los deportes por defecto; cada uno con sus parejas mixtas y su liga. */
+export async function seedSports(players: Player[]): Promise<void> {
   const batch = writeBatch(db);
-  DEFAULT_SPORTS.forEach((s, i) => buildSport(batch, s, i, playerIds));
+  DEFAULT_SPORTS.forEach((s, i) => buildSport(batch, s, i, players));
   await batch.commit();
 }
 
@@ -197,10 +231,39 @@ export async function addSport(
   name: string,
   emoji: string,
   order: number,
-  playerIds: string[]
+  players: Player[]
 ) {
   const batch = writeBatch(db);
-  buildSport(batch, { name, emoji }, order, playerIds);
+  buildSport(batch, { name, emoji }, order, players);
+  await batch.commit();
+}
+
+/** Vuelve a barajar las parejas mixtas de un deporte y resetea sus resultados. */
+export async function regeneratePairs(sportId: string, players: Player[]) {
+  const oldSnap = await getDocs(query(collection(db, "pairs"), where("sportId", "==", sportId)));
+  const batch = writeBatch(db);
+  oldSnap.forEach((d) => batch.delete(d.ref));
+
+  const males = players.filter((p) => playerGender(p) === "M").map((p) => p.id);
+  const females = players.filter((p) => playerGender(p) === "F").map((p) => p.id);
+  const pairIds: string[] = [];
+  mixedPairs(males, females).forEach(([a, b], p) => {
+    const pairRef = doc(collection(db, "pairs"));
+    pairIds.push(pairRef.id);
+    batch.set(pairRef, {
+      sportId,
+      name: `Pareja ${p + 1}`,
+      player1Id: a,
+      player2Id: b,
+      color: DEFAULT_PAIR_COLORS[p] ?? "emerald",
+      order: p,
+    });
+  });
+
+  batch.update(doc(db, "sports", sportId), {
+    "group.matches": pairIds.length >= 2 ? roundRobin(pairIds) : [],
+    knockout: emptyKnockout(),
+  });
   await batch.commit();
 }
 

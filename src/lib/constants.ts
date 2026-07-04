@@ -16,6 +16,20 @@ export const PLAYER_NAMES = [
   "Maria",
 ] as const;
 
+/** Nombres femeninos entre los 10 jugadores (el resto son masculinos). */
+export const FEMALE_PLAYER_NAMES = new Set([
+  "Elena G",
+  "Elena B",
+  "Lucia",
+  "Ana",
+  "Maria",
+]);
+
+/** Género de un jugador según su nombre (para formar parejas mixtas). */
+export function genderOf(name: string): "M" | "F" {
+  return FEMALE_PLAYER_NAMES.has(name) ? "F" : "M";
+}
+
 /** Deportes que se crean al inicializar el torneo. */
 export const DEFAULT_SPORTS: { name: string; emoji: string }[] = [
   { name: "Tenis", emoji: "🎾" },

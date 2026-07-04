@@ -13,6 +13,7 @@ import {
   RefreshCw,
   RotateCcw,
   Camera,
+  Shuffle,
 } from "lucide-react";
 import { Protected } from "@/components/AppShell";
 import { Card, EmptyState, FullScreenLoader, Modal, PairBadge, Spinner } from "@/components/ui";
@@ -33,6 +34,7 @@ import {
   deleteSport,
   resetTournamentScores,
   regenerateGroup,
+  regeneratePairs,
   setUserRole,
   setUserPlayer,
 } from "@/lib/db";
@@ -151,11 +153,11 @@ function SetupSection() {
           <div className="flex-1">
             <p className="font-semibold text-white">2 · Deportes</p>
             <p className="mb-3 text-sm text-slate-400">
-              Crea Tenis, Bádminton, Vóley y Fútbol, cada uno con sus 5 parejas y su liga. Luego ajusta las parejas de cada deporte en la pestaña Parejas.
+              Crea Tenis, Bádminton, Vóley y Fútbol. Cada deporte forma sus 5 parejas <b className="text-slate-200">mixtas al azar</b> (un chico y una chica), distintas en cada deporte.
             </p>
             <button
               disabled={busy !== null || players.length < 2 || sports.length > 0}
-              onClick={() => run("sp", () => seedSports(players.map((p) => p.id)))}
+              onClick={() => run("sp", () => seedSports(players))}
               className="btn-primary w-full"
             >
               {busy === "sp" ? <Spinner className="h-5 w-5" /> : sports.length > 0 ? `✓ ${sports.length} deportes ya creados` : "Crear deportes por defecto"}
@@ -314,22 +316,41 @@ function PairsSection() {
         {sportPairs.length === 0 && <p className="text-sm text-slate-400">Este deporte no tiene parejas.</p>}
       </div>
 
-      <button
-        disabled={busy || sportPairs.length < 2}
-        onClick={async () => {
-          if (!confirm("¿Regenerar la fase de grupos de este deporte? Se borrarán sus resultados.")) return;
-          setBusy(true);
-          try {
-            await regenerateGroup(currentSportId, sportPairs.map((p) => p.id));
-          } finally {
-            setBusy(false);
-          }
-        }}
-        className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 py-2 text-xs font-semibold text-slate-300 transition hover:bg-white/10 disabled:opacity-50"
-      >
-        {busy ? <Spinner className="h-4 w-4" /> : <RefreshCw className="h-3.5 w-3.5" />}
-        Regenerar fase de grupos
-      </button>
+      <div className="grid grid-cols-1 gap-2">
+        <button
+          disabled={busy}
+          onClick={async () => {
+            if (!confirm("¿Volver a sortear las parejas de este deporte? Se formarán parejas mixtas nuevas al azar y se borrarán sus resultados.")) return;
+            setBusy(true);
+            try {
+              await regeneratePairs(currentSportId, players);
+            } finally {
+              setBusy(false);
+            }
+          }}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-brand-400/25 bg-brand-500/10 py-2 text-xs font-semibold text-brand-200 transition hover:bg-brand-500/15 disabled:opacity-50"
+        >
+          {busy ? <Spinner className="h-4 w-4" /> : <Shuffle className="h-3.5 w-3.5" />}
+          Sortear parejas mixtas de nuevo
+        </button>
+
+        <button
+          disabled={busy || sportPairs.length < 2}
+          onClick={async () => {
+            if (!confirm("¿Regenerar la fase de grupos de este deporte? Se borrarán sus resultados (las parejas se mantienen).")) return;
+            setBusy(true);
+            try {
+              await regenerateGroup(currentSportId, sportPairs.map((p) => p.id));
+            } finally {
+              setBusy(false);
+            }
+          }}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 py-2 text-xs font-semibold text-slate-300 transition hover:bg-white/10 disabled:opacity-50"
+        >
+          {busy ? <Spinner className="h-4 w-4" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          Regenerar solo el calendario
+        </button>
+      </div>
 
       <PairEditor open={editing !== null} onClose={() => setEditing(null)} pair={editing} players={players} />
     </div>
@@ -528,7 +549,6 @@ function SportsSection() {
   const [busy, setBusy] = useState<string | null>(null);
 
   if (ls || lp || lpl) return <FullScreenLoader />;
-  const playerIds = players.map((p) => p.id);
 
   return (
     <div className="space-y-3">
@@ -584,7 +604,7 @@ function SportsSection() {
         }}
         sport={editing}
         order={sports.length}
-        playerIds={playerIds}
+        players={players}
       />
     </div>
   );
@@ -595,13 +615,13 @@ function SportEditor({
   onClose,
   sport,
   order,
-  playerIds,
+  players,
 }: {
   open: boolean;
   onClose: () => void;
   sport: { id: string; name: string; emoji: string } | null;
   order: number;
-  playerIds: string[];
+  players: Player[];
 }) {
   const [name, setName] = useState(sport?.name ?? "");
   const [emoji, setEmoji] = useState(sport?.emoji ?? "🏆");
@@ -623,7 +643,7 @@ function SportEditor({
     setBusy(true);
     try {
       if (sport) await updateSportMeta(sport.id, { name: name.trim(), emoji });
-      else await addSport(name.trim(), emoji, order, playerIds);
+      else await addSport(name.trim(), emoji, order, players);
       onClose();
     } catch (e) {
       setErr("No se pudo guardar.");
@@ -661,7 +681,7 @@ function SportEditor({
         </div>
         {!sport && (
           <p className="text-xs text-slate-500">
-            Se crearán 5 parejas por defecto y su fase de grupos. Podrás ajustarlas en Parejas.
+            Se crearán 5 parejas mixtas al azar (chico + chica) y su fase de grupos. Podrás ajustarlas en Parejas.
           </p>
         )}
         {err && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{err}</p>}
