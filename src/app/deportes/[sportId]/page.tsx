@@ -49,9 +49,10 @@ function SportDetail({ sportId }: { sportId: string }) {
     );
   }
 
-  const pairsMap = byId(pairs);
+  const sportPairs = pairs.filter((p) => p.sportId === sport.id);
+  const pairsMap = byId(sportPairs);
   const playersMap = byId(players);
-  const pairIds = pairs.map((p) => p.id);
+  const pairIds = sportPairs.map((p) => p.id);
   const res = computeSportResult(sport, pairIds);
   const badge = statusBadge(res.status);
 

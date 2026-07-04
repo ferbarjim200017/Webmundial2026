@@ -1,49 +1,48 @@
 "use client";
 // =====================================================================
-//  Podio y tabla de clasificación general
+//  Podio y tabla de clasificación general (individual, por jugador)
 // =====================================================================
 import { Crown } from "lucide-react";
-import type { GeneralRow, Pair, Player } from "@/lib/types";
-import { cn, pairColor, pairInitials, pairMembers } from "@/lib/helpers";
-import { PairBadge } from "./ui";
+import type { Player, PlayerRow } from "@/lib/types";
+import { cn, pairColor, playerName } from "@/lib/helpers";
+import { PAIR_COLOR_KEYS } from "@/lib/constants";
+import { PlayerBadge } from "./ui";
 
 const MEDAL = ["#fbbf24", "#cbd5e1", "#d97706"]; // oro, plata, bronce
 
+/** Color estable para cada jugador según su orden. */
+function playerColorKey(players: Map<string, Player>, id: string): string {
+  const order = players.get(id)?.order ?? 0;
+  return PAIR_COLOR_KEYS[order % PAIR_COLOR_KEYS.length];
+}
+
 export function Podium({
   rows,
-  pairs,
   players,
 }: {
-  rows: GeneralRow[];
-  pairs: Map<string, Pair>;
+  rows: PlayerRow[];
   players: Map<string, Player>;
 }) {
   const top = rows.slice(0, 3);
   if (top.length === 0) return null;
-  // Orden visual: 2º, 1º, 3º
-  const order = [top[1], top[0], top[2]].filter(Boolean) as GeneralRow[];
+  const order = [top[1], top[0], top[2]].filter(Boolean) as PlayerRow[];
   const heights: Record<number, string> = { 1: "h-28", 2: "h-20", 3: "h-16" };
 
   return (
     <div className="mb-2 flex items-end justify-center gap-2.5">
       {order.map((row) => {
-        const pair = pairs.get(row.pairId);
-        const c = pairColor(pair?.color);
+        const c = pairColor(playerColorKey(players, row.playerId));
         const isFirst = row.rank === 1;
         return (
-          <div key={row.pairId} className="flex flex-1 flex-col items-center">
+          <div key={row.playerId} className="flex flex-1 flex-col items-center">
             {isFirst && <Crown className="mb-1 h-5 w-5 text-gold drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]" />}
-            <PairBadge
-              colorKey={pair?.color}
-              initials={pairInitials(pair, players)}
+            <PlayerBadge
+              name={playerName(players, row.playerId)}
+              colorKey={playerColorKey(players, row.playerId)}
               size={isFirst ? 60 : 46}
-              photoUrl={pair?.photo}
             />
             <p className="mt-1.5 line-clamp-1 text-center text-xs font-bold text-white">
-              {pair?.name ?? "—"}
-            </p>
-            <p className="line-clamp-1 text-center text-[10px] text-slate-400">
-              {pairMembers(pair, players)}
+              {playerName(players, row.playerId)}
             </p>
             <div
               className={cn(
@@ -71,25 +70,22 @@ export function Podium({
 
 export function GeneralTable({
   rows,
-  pairs,
   players,
-  onPairClick,
+  onPlayerClick,
 }: {
-  rows: GeneralRow[];
-  pairs: Map<string, Pair>;
+  rows: PlayerRow[];
   players: Map<string, Player>;
-  onPairClick?: (pairId: string) => void;
+  onPlayerClick?: (playerId: string) => void;
 }) {
   return (
     <div className="card divide-y divide-white/5 overflow-hidden p-0">
       {rows.map((row) => {
-        const pair = pairs.get(row.pairId);
         const podium = row.rank <= 3 && row.points > 0;
         return (
           <button
-            key={row.pairId}
+            key={row.playerId}
             type="button"
-            onClick={() => onPairClick?.(row.pairId)}
+            onClick={() => onPlayerClick?.(row.playerId)}
             className={cn(
               "flex w-full items-center gap-3 px-3.5 py-3 text-left transition hover:bg-white/[0.05] active:bg-white/[0.07]",
               podium && "bg-white/[0.03]"
@@ -101,10 +97,15 @@ export function GeneralTable({
             >
               {row.rank}
             </span>
-            <PairBadge colorKey={pair?.color} initials={pairInitials(pair, players)} size={38} photoUrl={pair?.photo} />
+            <PlayerBadge
+              name={playerName(players, row.playerId)}
+              colorKey={playerColorKey(players, row.playerId)}
+              size={36}
+            />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-white">{pair?.name ?? "—"}</p>
-              <p className="truncate text-xs text-slate-400">{pairMembers(pair, players)}</p>
+              <p className="truncate text-sm font-semibold text-white">
+                {playerName(players, row.playerId)}
+              </p>
             </div>
             <div className="flex items-center gap-2 text-xs text-slate-400">
               {row.gold > 0 && <Medal emoji="🥇" n={row.gold} />}

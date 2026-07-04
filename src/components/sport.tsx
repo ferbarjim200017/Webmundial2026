@@ -12,12 +12,14 @@ import {
   pairColor,
   pairInitials,
   pairMembers,
+  playerName,
 } from "@/lib/helpers";
+import { PAIR_COLOR_KEYS } from "@/lib/constants";
 import {
   computeGroupTable,
   computeSportResult,
-  computeGeneral,
-  computeGrandFinalQual,
+  computeIndividualGeneral,
+  grandFinalPairing,
   resolveBracket,
   resolveKnockout,
   normalizeKnockout,
@@ -30,11 +32,8 @@ import {
   setKnockoutResult,
   useGrandFinal,
   setGrandFinalKnockoutResult,
-  createGrandFinalTiebreak,
-  setGrandFinalTiebreakResult,
-  clearGrandFinalTiebreak,
 } from "@/lib/db";
-import { PairBadge, Modal, PhotoLightbox } from "./ui";
+import { PairBadge, PlayerBadge, Modal, PhotoLightbox } from "./ui";
 
 // ---------- Estado visual ----------
 export function statusBadge(status: SportStatus) {
@@ -787,14 +786,33 @@ export function GrandFinal({
   isAdmin: boolean;
 }) {
   const { data: gf, loading } = useGrandFinal();
-  const [resultsPairId, setResultsPairId] = useState<string | null>(null);
 
-  const pairsMap = byId(pairs);
-  const pairIds = pairs.map((p) => p.id);
-  const general = computeGeneral(sports, pairIds);
-  const qual = computeGrandFinalQual(general, gf?.tiebreak ?? null);
+  const playerIds = [...players.keys()];
+  const general = computeIndividualGeneral(sports, pairs, playerIds);
+  const hasPoints = general.some((r) => r.points > 0);
   const allFinished =
-    sports.length > 0 && sports.every((s) => computeSportResult(s, pairIds).status === "finished");
+    sports.length > 0 &&
+    sports.every((s) => {
+      const sp = pairs.filter((p) => p.sportId === s.id).map((p) => p.id);
+      return computeSportResult(s, sp).status === "finished";
+    });
+
+  // 4 parejas automáticas con los 8 mejores: (1º,2º)(3º,4º)(5º,6º)(7º,8º)
+  const gfColors = ["emerald", "sky", "violet", "amber"];
+  const gfPairs: Pair[] = grandFinalPairing(general).map((duo, i) => ({
+    id: `gf${i}`,
+    sportId: "grandFinal",
+    name: `${playerName(players, duo[0])} & ${playerName(players, duo[1])}`,
+    player1Id: duo[0],
+    player2Id: duo[1],
+    color: gfColors[i] ?? "emerald",
+    order: i,
+  }));
+  const gfMap = byId(gfPairs);
+  const bracket = resolveKnockout(
+    normalizeKnockout(gf?.knockout),
+    gfPairs.map((p) => p.id)
+  );
 
   if (loading) return null;
 
@@ -805,237 +823,138 @@ export function GrandFinal({
     </div>
   );
 
-  // Sin puntos todavía
-  if (!qual.hasPoints) {
+  if (!hasPoints) {
     return (
       <div>
         {Header}
         <div className="card mt-2 p-4 text-center">
           <div className="mb-1 text-3xl">👑</div>
           <p className="text-sm text-slate-400">
-            Cuando las parejas sumen puntos en los deportes, las 4 mejores lucharán aquí por el gran título.
+            Cuando los deportes repartan puntos, los 8 mejores formarán 4 parejas y lucharán aquí por el gran título.
           </p>
         </div>
       </div>
     );
   }
 
-  // Vista previa hasta que terminen todos los deportes
   if (!allFinished) {
-    const top4 = general.slice(0, 4);
     return (
       <div>
         {Header}
         <p className="mb-2 text-xs text-slate-400">
-          La Gran Final se disputará cuando terminen todos los deportes. Clasificación provisional:
+          La Gran Final se juega al terminar todos los deportes. Con la clasificación actual, las parejas serían:
         </p>
-        <Qualifiers seeds={top4.map((r) => r.pairId)} pairs={pairsMap} players={players} provisional />
+        <GfPairsList pairs={gfPairs} players={players} />
       </div>
     );
   }
 
-  const knockout = normalizeKnockout(gf?.knockout);
-  const seeds = qual.qualifiers ?? [];
-  const bracket = resolveKnockout(knockout, seeds);
-
   return (
     <div className="space-y-3">
       {Header}
-      <p className="text-xs text-slate-400">Las 4 mejores parejas de la general luchan por el gran título.</p>
-
-      {qual.needsTiebreak && !qual.tiebreakReady ? (
-        <TiebreakSection
-          gf={gf}
-          boundary={qual.boundary}
-          spots={qual.spotsForBoundary}
-          pairs={pairsMap}
-          players={players}
-          isAdmin={isAdmin}
-        />
+      <p className="text-xs text-slate-400">
+        Parejas formadas con los 8 mejores de la general: 1º+2º, 3º+4º, 5º+6º y 7º+8º.
+      </p>
+      {gfPairs.length < 4 ? (
+        <div className="card p-4 text-center text-sm text-slate-400">
+          Hacen falta al menos 8 jugadores con puntos para formar las parejas.
+        </div>
       ) : (
         <>
-          <Qualifiers seeds={seeds} pairs={pairsMap} players={players} />
+          <GfPairsList pairs={gfPairs} players={players} />
           {bracket.final.winnerPairId && (
-            <ChampionBanner pairId={bracket.final.winnerPairId} title="🏆 Gran Campeón" big pairs={pairsMap} players={players} />
+            <ChampionBanner pairId={bracket.final.winnerPairId} title="🏆 Gran Campeón" big pairs={gfMap} players={players} />
           )}
           <KnockoutBoard
             bracket={bracket}
-            pairs={pairsMap}
+            pairs={gfMap}
             players={players}
             isAdmin={isAdmin}
-            onPairClick={setResultsPairId}
             onSave={(key, h, a, w) => setGrandFinalKnockoutResult(key, h, a, w)}
             onClear={(key) => setGrandFinalKnockoutResult(key, null, null, null)}
           />
-          <p className="text-center text-[11px] text-slate-500">Toca una pareja para ver su resumen</p>
         </>
       )}
-
-      <PairSportsModal
-        open={resultsPairId !== null}
-        onClose={() => setResultsPairId(null)}
-        sports={sports}
-        pairId={resultsPairId}
-        pairs={pairsMap}
-        players={players}
-      />
     </div>
   );
 }
 
-function Qualifiers({
-  seeds,
-  pairs,
-  players,
-  provisional,
-}: {
-  seeds: string[];
-  pairs: Map<string, Pair>;
-  players: Map<string, Player>;
-  provisional?: boolean;
-}) {
+function GfPairsList({ pairs, players }: { pairs: Pair[]; players: Map<string, Player> }) {
   return (
     <div className="card p-3">
       <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-        {provisional ? "Van clasificadas" : "Clasificadas a semifinales"}
+        Parejas de la Gran Final
       </p>
-      <div className="grid grid-cols-2 gap-2">
-        {seeds.map((pid, i) => {
-          const pair = pairs.get(pid);
-          return (
-            <div key={pid} className="flex items-center gap-2">
-              <span className="w-4 shrink-0 text-center text-xs font-bold text-gold">{i + 1}º</span>
-              <PairBadge colorKey={pair?.color} initials={pair ? pairInitials(pair, players) : "?"} size={26} photoUrl={pair?.photo} />
-              <span className="truncate text-sm font-semibold text-white">{pair?.name ?? "—"}</span>
-            </div>
-          );
-        })}
-        {seeds.length === 0 && <p className="text-xs text-slate-500">Pendiente…</p>}
-      </div>
-    </div>
-  );
-}
-
-function TiebreakSection({
-  gf,
-  boundary,
-  spots,
-  pairs,
-  players,
-  isAdmin,
-}: {
-  gf: import("@/lib/types").GrandFinal | null;
-  boundary: string[];
-  spots: number;
-  pairs: Map<string, Pair>;
-  players: Map<string, Player>;
-  isAdmin: boolean;
-}) {
-  const tb = gf?.tiebreak ?? null;
-  const valid =
-    !!tb && tb.pairIds.length === boundary.length && boundary.every((id) => tb.pairIds.includes(id));
-
-  return (
-    <div className="card space-y-3 border-amber-500/30 bg-amber-500/[0.05] p-4">
-      <p className="text-sm text-amber-200">
-        Empate a puntos por {spots === 1 ? "la última plaza" : `las últimas ${spots} plazas`} entre{" "}
-        {boundary.length} parejas. Hay que desempatar{" "}
-        {boundary.length === 2 ? "con un partido" : "con una mini-liga (todos contra todos)"}.
-      </p>
-      <div className="flex flex-wrap gap-1.5">
-        {boundary.map((id) => (
-          <span key={id} className="chip bg-white/10 text-slate-200">
-            {pairs.get(id)?.name ?? "—"}
-          </span>
+      <div className="space-y-1.5">
+        {pairs.map((p, i) => (
+          <div key={p.id} className="flex items-center gap-2">
+            <span className="w-4 shrink-0 text-center text-xs font-bold text-gold">{i + 1}º</span>
+            <PairBadge colorKey={p.color} initials={pairInitials(p, players)} size={26} />
+            <span className="truncate text-sm font-semibold text-white">{pairMembers(p, players)}</span>
+          </div>
         ))}
+        {pairs.length === 0 && <p className="text-xs text-slate-500">Aún no hay clasificación.</p>}
       </div>
-
-      {!valid ? (
-        isAdmin ? (
-          <button onClick={() => createGrandFinalTiebreak(boundary, spots)} className="btn-primary w-full">
-            {boundary.length === 2 ? "Crear partido de desempate" : "Crear mini-liga de desempate"}
-          </button>
-        ) : (
-          <p className="text-xs text-slate-400">Un administrador debe crear el desempate.</p>
-        )
-      ) : (
-        <div className="space-y-2">
-          {tb!.matches.map((m) => (
-            <LeagueMatchRow
-              key={m.id}
-              match={m}
-              pairs={pairs}
-              players={players}
-              isAdmin={isAdmin}
-              onSave={(h, a) => gf && setGrandFinalTiebreakResult(gf, m.id, h, a)}
-              onClear={() => gf && setGrandFinalTiebreakResult(gf, m.id, null, null)}
-            />
-          ))}
-          {isAdmin && (
-            <button
-              onClick={() => {
-                if (confirm("¿Rehacer el desempate? Se borrarán sus resultados.")) clearGrandFinalTiebreak();
-              }}
-              className="btn-ghost w-full text-xs"
-            >
-              Rehacer desempate
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 }
 
 // =====================================================================
-//  Modal: resumen de una pareja por deportes (clasificación general)
+//  Modal: resumen de un jugador por deportes (clasificación individual)
 // =====================================================================
-export function PairSportsModal({
+export function PlayerSportsModal({
   open,
   onClose,
   sports,
-  pairId,
   pairs,
+  playerId,
   players,
 }: {
   open: boolean;
   onClose: () => void;
   sports: Sport[];
-  pairId: string | null;
-  pairs: Map<string, Pair>;
+  pairs: Pair[];
+  playerId: string | null;
   players: Map<string, Player>;
 }) {
-  const pair = pairId ? pairs.get(pairId) : undefined;
-  const pairIds = [...pairs.keys()];
+  const player = playerId ? players.get(playerId) : undefined;
 
-  const rows = pairId
+  const rows = playerId
     ? sports.map((s) => {
-        const res = computeSportResult(s, pairIds);
+        const sportPairs = pairs.filter((p) => p.sportId === s.id);
+        const myPair = sportPairs.find(
+          (p) => p.player1Id === playerId || p.player2Id === playerId
+        );
         let medal = "";
         let pts = 0;
-        if (res.championPairId === pairId) { medal = "🥇"; pts = 3; }
-        else if (res.runnerUpPairId === pairId) { medal = "🥈"; pts = 2; }
-        else if (res.thirdPairId === pairId) { medal = "🥉"; pts = 1; }
-        return { sport: s, medal, pts };
+        if (myPair) {
+          const res = computeSportResult(s, sportPairs.map((p) => p.id));
+          if (res.championPairId === myPair.id) { medal = "🥇"; pts = 3; }
+          else if (res.runnerUpPairId === myPair.id) { medal = "🥈"; pts = 2; }
+          else if (res.thirdPairId === myPair.id) { medal = "🥉"; pts = 1; }
+        }
+        const partnerId = myPair
+          ? myPair.player1Id === playerId
+            ? myPair.player2Id
+            : myPair.player1Id
+          : null;
+        return { sport: s, partnerId, medal, pts };
       })
     : [];
   const total = rows.reduce((a, r) => a + r.pts, 0);
-  const [viewer, setViewer] = useState(false);
+  const colorKey = PAIR_COLOR_KEYS[(player?.order ?? 0) % PAIR_COLOR_KEYS.length];
 
   return (
-    <Modal open={open && !!pair} onClose={onClose} title={pair?.name ?? "Pareja"}>
+    <Modal open={open && !!player} onClose={onClose} title={player?.name ?? "Jugador"}>
       <div className="space-y-4">
         <div className="flex items-center gap-3">
-          <button type="button" onClick={() => pair?.photo && setViewer(true)} className="shrink-0" disabled={!pair?.photo}>
-            <PairBadge colorKey={pair?.color} initials={pair ? pairInitials(pair, players) : "?"} size={44} photoUrl={pair?.photo} />
-          </button>
+          <PlayerBadge name={player?.name ?? "?"} size={44} colorKey={colorKey} />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-white">{pairMembers(pair, players)}</p>
+            <p className="truncate text-sm font-semibold text-white">{player?.name}</p>
             <p className="text-xs text-slate-400">Puntos totales</p>
           </div>
           <span className="text-2xl font-extrabold tabular text-white">{total}</span>
         </div>
-        <PhotoLightbox open={viewer} onClose={() => setViewer(false)} src={pair?.photo} title={pair?.name} subtitle={pairMembers(pair, players)} />
 
         <div className="space-y-2">
           {rows.length === 0 ? (
@@ -1046,7 +965,12 @@ export function PairSportsModal({
             rows.map((r) => (
               <div key={r.sport.id} className="flex items-center gap-2 rounded-xl border border-white/10 bg-ink-900/60 px-3 py-2.5">
                 <span className="text-lg">{r.sport.emoji}</span>
-                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{r.sport.name}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-white">{r.sport.name}</p>
+                  <p className="truncate text-[11px] text-slate-400">
+                    {r.partnerId ? `con ${playerName(players, r.partnerId)}` : "sin pareja"}
+                  </p>
+                </div>
                 {r.medal ? (
                   <span className="text-base">{r.medal}</span>
                 ) : (

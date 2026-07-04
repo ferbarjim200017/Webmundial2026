@@ -2,11 +2,12 @@
 //  Lógica del torneo: generación de partidos, clasificaciones y cuadro
 // =====================================================================
 import type {
-  GeneralRow,
   GroupMatch,
   GroupRow,
   Knockout,
   KnockoutMatch,
+  Pair,
+  PlayerRow,
   Sport,
   SportResult,
   SportStatus,
@@ -320,40 +321,57 @@ export function pairMatchesInSport(
   return out;
 }
 
-// ---------- Clasificación general ----------
+// ---------- Clasificación general (individual, por jugador) ----------
 
-export function computeGeneral(sports: Sport[], pairIds: string[]): GeneralRow[] {
-  const rows = new Map<string, GeneralRow>();
-  pairIds.forEach((pairId) =>
-    rows.set(pairId, { pairId, points: 0, gold: 0, silver: 0, bronze: 0, played: 0, rank: 0 })
+/**
+ * Clasificación general por JUGADOR. En cada deporte, ambos jugadores de la
+ * pareja campeona suman 3 (oro), la subcampeona 2 (plata) y la tercera 1
+ * (bronce). Como las parejas son por deporte, se pasan todas las parejas.
+ */
+export function computeIndividualGeneral(
+  sports: Sport[],
+  pairs: Pair[],
+  playerIds: string[]
+): PlayerRow[] {
+  const rows = new Map<string, PlayerRow>();
+  playerIds.forEach((playerId) =>
+    rows.set(playerId, { playerId, points: 0, gold: 0, silver: 0, bronze: 0, played: 0, rank: 0 })
   );
 
+  const award = (
+    pairId: string | null,
+    byPairId: Map<string, Pair>,
+    pts: number,
+    medal: "gold" | "silver" | "bronze"
+  ) => {
+    if (!pairId) return;
+    const pair = byPairId.get(pairId);
+    if (!pair) return;
+    for (const pid of [pair.player1Id, pair.player2Id]) {
+      const row = rows.get(pid);
+      if (!row) continue;
+      row.points += pts;
+      row[medal] += 1;
+    }
+  };
+
   for (const sport of sports) {
+    const sportPairs = pairs.filter((p) => p.sportId === sport.id);
+    const pairIds = sportPairs.map((p) => p.id);
+    const byPairId = new Map(sportPairs.map((p) => [p.id, p]));
     const res = computeSportResult(sport, pairIds);
-    if (res.championPairId && rows.has(res.championPairId)) {
-      const r = rows.get(res.championPairId)!;
-      r.points += SPORT_POINTS.champion;
-      r.gold += 1;
-    }
-    if (res.runnerUpPairId && rows.has(res.runnerUpPairId)) {
-      const r = rows.get(res.runnerUpPairId)!;
-      r.points += SPORT_POINTS.runnerUp;
-      r.silver += 1;
-    }
-    if (res.thirdPairId && rows.has(res.thirdPairId)) {
-      const r = rows.get(res.thirdPairId)!;
-      r.points += SPORT_POINTS.third;
-      r.bronze += 1;
-    }
+    award(res.championPairId, byPairId, SPORT_POINTS.champion, "gold");
+    award(res.runnerUpPairId, byPairId, SPORT_POINTS.runnerUp, "silver");
+    award(res.thirdPairId, byPairId, SPORT_POINTS.third, "bronze");
   }
 
-  const order = new Map(pairIds.map((id, i) => [id, i]));
+  const order = new Map(playerIds.map((id, i) => [id, i]));
   const sorted = [...rows.values()].sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
     if (b.gold !== a.gold) return b.gold - a.gold;
     if (b.silver !== a.silver) return b.silver - a.silver;
     if (b.bronze !== a.bronze) return b.bronze - a.bronze;
-    return (order.get(a.pairId) ?? 0) - (order.get(b.pairId) ?? 0);
+    return (order.get(a.playerId) ?? 0) - (order.get(b.playerId) ?? 0);
   });
 
   sorted.forEach((r, i) => {
@@ -366,92 +384,15 @@ export function computeGeneral(sports: Sport[], pairIds: string[]): GeneralRow[]
 
 // ---------- Gran Final ----------
 
-function sameSet(a: string[], b: string[]): boolean {
-  if (a.length !== b.length) return false;
-  const s = new Set(a);
-  return b.every((x) => s.has(x));
-}
-
-export interface GrandFinalTiebreak {
-  pairIds: string[];
-  spots: number;
-  matches: GroupMatch[];
-}
-
-export interface GrandFinalQual {
-  /** Parejas con plaza asegurada (más puntos que el corte). */
-  secured: string[];
-  /** Parejas empatadas justo en el corte que se disputan las plazas restantes. */
-  boundary: string[];
-  spotsForBoundary: number;
-  needsTiebreak: boolean;
-  tiebreakReady: boolean;
-  /** Siembra final [1º,2º,3º,4º] si está resuelta; null si falta desempate. */
-  qualifiers: string[] | null;
-  hasPoints: boolean;
-}
-
 /**
- * Determina las 4 parejas que pasan a la Gran Final a partir de la
- * clasificación general. Si hay empate a puntos en el corte (4º puesto),
- * marca que hace falta un desempate (un partido si son 2, mini-liga si más).
+ * Empareja a los 8 mejores de la general individual en 4 duplas automáticas:
+ * (1º,2º) (3º,4º) (5º,6º) (7º,8º). Devuelve hasta 4 parejas de jugadores.
  */
-export function computeGrandFinalQual(
-  general: GeneralRow[],
-  tiebreak: GrandFinalTiebreak | null
-): GrandFinalQual {
-  const ranked = [...general];
-  const hasPoints = ranked.some((r) => r.points > 0);
-  const totalSpots = Math.min(4, ranked.length);
-
-  const base: GrandFinalQual = {
-    secured: [],
-    boundary: [],
-    spotsForBoundary: 0,
-    needsTiebreak: false,
-    tiebreakReady: false,
-    qualifiers: null,
-    hasPoints,
-  };
-
-  if (ranked.length <= totalSpots) {
-    return {
-      ...base,
-      secured: ranked.map((r) => r.pairId),
-      qualifiers: ranked.slice(0, totalSpots).map((r) => r.pairId),
-    };
+export function grandFinalPairing(rows: PlayerRow[]): [string, string][] {
+  const top = rows.slice(0, 8).map((r) => r.playerId);
+  const pairs: [string, string][] = [];
+  for (let i = 0; i + 1 < top.length; i += 2) {
+    pairs.push([top[i], top[i + 1]]);
   }
-
-  const cutoffPoints = ranked[totalSpots - 1].points;
-  const secured = ranked.filter((r) => r.points > cutoffPoints).map((r) => r.pairId);
-  const boundary = ranked.filter((r) => r.points === cutoffPoints).map((r) => r.pairId);
-  const spotsForBoundary = totalSpots - secured.length;
-
-  if (boundary.length === spotsForBoundary) {
-    return { ...base, secured, qualifiers: [...secured, ...boundary] };
-  }
-
-  // Empate en el corte → desempate
-  let qualifiers: string[] | null = null;
-  let tiebreakReady = false;
-  if (
-    tiebreak &&
-    sameSet(tiebreak.pairIds, boundary) &&
-    tiebreak.matches.length > 0 &&
-    tiebreak.matches.every(isGroupMatchPlayed)
-  ) {
-    tiebreakReady = true;
-    const table = computeStandings(tiebreak.matches, tiebreak.pairIds, spotsForBoundary);
-    qualifiers = [...secured, ...table.slice(0, spotsForBoundary).map((r) => r.pairId)];
-  }
-
-  return {
-    secured,
-    boundary,
-    spotsForBoundary,
-    needsTiebreak: true,
-    tiebreakReady,
-    qualifiers,
-    hasPoints,
-  };
+  return pairs;
 }

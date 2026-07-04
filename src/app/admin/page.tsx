@@ -22,11 +22,10 @@ import {
   usePairs,
   useSports,
   useUsers,
-  seedPlayersAndPairs,
+  seedPlayers,
   seedSports,
   updatePlayerName,
   savePair,
-  deletePair,
   setPairPhoto,
   removePairPhoto,
   addSport,
@@ -131,16 +130,16 @@ function SetupSection() {
         <div className="flex items-start gap-3">
           <span className="text-2xl">🚀</span>
           <div className="flex-1">
-            <p className="font-semibold text-white">1 · Jugadores y parejas</p>
+            <p className="font-semibold text-white">1 · Jugadores</p>
             <p className="mb-3 text-sm text-slate-400">
-              Crea los 10 jugadores y 5 parejas iniciales. Luego puedes renombrar y reorganizar.
+              Crea los 10 jugadores. Las parejas se definen luego dentro de cada deporte.
             </p>
             <button
               disabled={busy !== null || players.length > 0}
-              onClick={() => run("pp", seedPlayersAndPairs)}
+              onClick={() => run("pp", seedPlayers)}
               className="btn-primary w-full"
             >
-              {busy === "pp" ? <Spinner className="h-5 w-5" /> : players.length > 0 ? `✓ ${players.length} jugadores ya creados` : "Crear jugadores y parejas"}
+              {busy === "pp" ? <Spinner className="h-5 w-5" /> : players.length > 0 ? `✓ ${players.length} jugadores ya creados` : "Crear jugadores"}
             </button>
           </div>
         </div>
@@ -152,11 +151,11 @@ function SetupSection() {
           <div className="flex-1">
             <p className="font-semibold text-white">2 · Deportes</p>
             <p className="mb-3 text-sm text-slate-400">
-              Crea Tenis, Bádminton, Vóley y Fútbol con su fase de grupos lista. Necesita las parejas creadas.
+              Crea Tenis, Bádminton, Vóley y Fútbol, cada uno con sus 5 parejas y su liga. Luego ajusta las parejas de cada deporte en la pestaña Parejas.
             </p>
             <button
-              disabled={busy !== null || pairs.length < 2 || sports.length > 0}
-              onClick={() => run("sp", () => seedSports(pairs.map((p) => p.id)))}
+              disabled={busy !== null || players.length < 2 || sports.length > 0}
+              onClick={() => run("sp", () => seedSports(players.map((p) => p.id)))}
               className="btn-primary w-full"
             >
               {busy === "sp" ? <Spinner className="h-5 w-5" /> : sports.length > 0 ? `✓ ${sports.length} deportes ya creados` : "Crear deportes por defecto"}
@@ -176,9 +175,9 @@ function SetupSection() {
           <div className="flex-1">
             <p className="font-semibold text-white">Reiniciar a cero</p>
             <p className="mb-3 text-sm text-slate-400">
-              Borra <b className="text-slate-200">todos los deportes y resultados</b> y deja la
-              clasificación general a cero. Los <b className="text-slate-200">jugadores y parejas
-              se conservan</b>.
+              Borra <b className="text-slate-200">todos los deportes y sus parejas</b> y deja la
+              clasificación general a cero. Los <b className="text-slate-200">jugadores se
+              conservan</b>.
             </p>
             <button
               disabled={busy !== null || sports.length === 0}
@@ -261,22 +260,46 @@ function PlayerRow({ player }: { player: Player }) {
 //  Parejas
 // =====================================================================
 function PairsSection() {
+  const { data: sports, loading: ls } = useSports();
   const { data: pairs, loading: lp } = usePairs();
   const { data: players, loading: lpl } = usePlayers();
+  const [sportId, setSportId] = useState<string>("");
   const [editing, setEditing] = useState<Pair | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  if (lp || lpl) return <FullScreenLoader />;
+  if (ls || lp || lpl) return <FullScreenLoader />;
+  if (sports.length === 0)
+    return <EmptyState icon={<UsersRound />} title="Sin deportes" hint="Crea deportes desde la pestaña Inicio; cada uno trae sus 5 parejas." />;
+
+  const currentSportId = sports.some((s) => s.id === sportId) ? sportId : sports[0].id;
+  const sport = sports.find((s) => s.id === currentSportId)!;
   const playersMap = byId(players);
+  const sportPairs = pairs.filter((p) => p.sportId === currentSportId).sort((a, b) => a.order - b.order);
 
   return (
     <div className="space-y-3">
+      {/* Selector de deporte */}
+      <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
+        {sports.map((s) => (
+          <button
+            key={s.id}
+            onClick={() => setSportId(s.id)}
+            className={cn(
+              "flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-semibold transition",
+              currentSportId === s.id ? "bg-gradient-to-br from-brand-400 to-brand-600 text-ink-950" : "border border-white/10 bg-white/5 text-slate-300"
+            )}
+          >
+            <span>{s.emoji}</span> {s.name}
+          </button>
+        ))}
+      </div>
+
       <p className="rounded-xl border border-amber-500/20 bg-amber-500/[0.06] px-3 py-2 text-xs text-amber-200">
-        Cambiar nombre, color o miembros es seguro. Si <b>añades o eliminas</b> parejas, regenera la fase de grupos de cada deporte.
+        Parejas de <b>{sport.name}</b>. Cada deporte tiene sus propias parejas. Tras cambiar quién va con quién, pulsa <b>Regenerar fase de grupos</b>.
       </p>
 
       <div className="space-y-2">
-        {pairs.map((pair) => (
+        {sportPairs.map((pair) => (
           <div key={pair.id} className="flex items-center gap-3 rounded-xl border border-white/10 bg-ink-850/60 p-3">
             <PairBadge colorKey={pair.color} initials={pairInitials(pair, playersMap)} size={40} photoUrl={pair.photo} />
             <div className="min-w-0 flex-1">
@@ -286,32 +309,29 @@ function PairsSection() {
             <button onClick={() => setEditing(pair)} className="btn-ghost px-2.5 py-2">
               <Pencil className="h-4 w-4" />
             </button>
-            <button
-              onClick={() => {
-                if (confirm(`¿Eliminar "${pair.name}"? Recuerda regenerar los grupos.`)) deletePair(pair.id);
-              }}
-              className="btn-danger px-2.5 py-2"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
           </div>
         ))}
+        {sportPairs.length === 0 && <p className="text-sm text-slate-400">Este deporte no tiene parejas.</p>}
       </div>
 
-      <button onClick={() => setCreating(true)} className="btn-ghost w-full">
-        <Plus className="h-4 w-4" /> Añadir pareja
+      <button
+        disabled={busy || sportPairs.length < 2}
+        onClick={async () => {
+          if (!confirm("¿Regenerar la fase de grupos de este deporte? Se borrarán sus resultados.")) return;
+          setBusy(true);
+          try {
+            await regenerateGroup(currentSportId, sportPairs.map((p) => p.id));
+          } finally {
+            setBusy(false);
+          }
+        }}
+        className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 py-2 text-xs font-semibold text-slate-300 transition hover:bg-white/10 disabled:opacity-50"
+      >
+        {busy ? <Spinner className="h-4 w-4" /> : <RefreshCw className="h-3.5 w-3.5" />}
+        Regenerar fase de grupos
       </button>
 
-      <PairEditor
-        open={creating || editing !== null}
-        onClose={() => {
-          setCreating(false);
-          setEditing(null);
-        }}
-        pair={editing}
-        players={players}
-        nextOrder={pairs.length}
-      />
+      <PairEditor open={editing !== null} onClose={() => setEditing(null)} pair={editing} players={players} />
     </div>
   );
 }
@@ -321,13 +341,11 @@ function PairEditor({
   onClose,
   pair,
   players,
-  nextOrder,
 }: {
   open: boolean;
   onClose: () => void;
   pair: Pair | null;
   players: Player[];
-  nextOrder: number;
 }) {
   const [name, setName] = useState(pair?.name ?? "");
   const [color, setColor] = useState(pair?.color ?? PAIR_COLOR_KEYS[0]);
@@ -384,14 +402,16 @@ function PairEditor({
     if (!name.trim()) return setErr("Ponle un nombre a la pareja.");
     if (!p1 || !p2) return setErr("Selecciona los dos jugadores.");
     if (p1 === p2) return setErr("Los dos jugadores deben ser distintos.");
+    if (!pair) return;
     setBusy(true);
     try {
-      await savePair(pair?.id ?? null, {
+      await savePair(pair.id, {
+        sportId: pair.sportId,
         name: name.trim(),
         player1Id: p1,
         player2Id: p2,
         color,
-        order: pair?.order ?? nextOrder,
+        order: pair.order,
       });
       onClose();
     } catch (e) {
@@ -502,12 +522,13 @@ function PlayerSelect({
 function SportsSection() {
   const { data: sports, loading: ls } = useSports();
   const { data: pairs, loading: lp } = usePairs();
+  const { data: players, loading: lpl } = usePlayers();
   const [editing, setEditing] = useState<{ id: string; name: string; emoji: string } | null>(null);
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
 
-  if (ls || lp) return <FullScreenLoader />;
-  const pairIds = pairs.map((p) => p.id);
+  if (ls || lp || lpl) return <FullScreenLoader />;
+  const playerIds = players.map((p) => p.id);
 
   return (
     <div className="space-y-3">
@@ -530,12 +551,14 @@ function SportsSection() {
               </button>
             </div>
             <button
-              disabled={busy !== null || pairIds.length < 2}
+              disabled={busy !== null}
               onClick={async () => {
                 if (!confirm("¿Regenerar la fase de grupos? Se borrarán los resultados de este deporte.")) return;
+                const sportPairIds = pairs.filter((p) => p.sportId === s.id).map((p) => p.id);
+                if (sportPairIds.length < 2) return;
                 setBusy(s.id);
                 try {
-                  await regenerateGroup(s.id, pairIds);
+                  await regenerateGroup(s.id, sportPairIds);
                 } finally {
                   setBusy(null);
                 }
@@ -561,7 +584,7 @@ function SportsSection() {
         }}
         sport={editing}
         order={sports.length}
-        pairIds={pairIds}
+        playerIds={playerIds}
       />
     </div>
   );
@@ -572,13 +595,13 @@ function SportEditor({
   onClose,
   sport,
   order,
-  pairIds,
+  playerIds,
 }: {
   open: boolean;
   onClose: () => void;
   sport: { id: string; name: string; emoji: string } | null;
   order: number;
-  pairIds: string[];
+  playerIds: string[];
 }) {
   const [name, setName] = useState(sport?.name ?? "");
   const [emoji, setEmoji] = useState(sport?.emoji ?? "🏆");
@@ -600,7 +623,7 @@ function SportEditor({
     setBusy(true);
     try {
       if (sport) await updateSportMeta(sport.id, { name: name.trim(), emoji });
-      else await addSport(name.trim(), emoji, order, pairIds);
+      else await addSport(name.trim(), emoji, order, playerIds);
       onClose();
     } catch (e) {
       setErr("No se pudo guardar.");
@@ -638,7 +661,7 @@ function SportEditor({
         </div>
         {!sport && (
           <p className="text-xs text-slate-500">
-            Se generará la fase de grupos con las {pairIds.length} parejas actuales.
+            Se crearán 5 parejas por defecto y su fase de grupos. Podrás ajustarlas en Parejas.
           </p>
         )}
         {err && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{err}</p>}

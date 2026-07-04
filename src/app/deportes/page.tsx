@@ -21,12 +21,11 @@ function SportsList() {
 
   if (ls || lpairs || lpl) return <FullScreenLoader />;
 
-  const pairsMap = byId(pairs);
   const playersMap = byId(players);
 
   return (
     <div className="space-y-4 animate-fade-up">
-      <SectionTitle title="Deportes" subtitle="Toca un deporte para ver grupos y eliminatorias" />
+      <SectionTitle title="Deportes" subtitle="Cada deporte tiene sus propias parejas" />
 
       {sports.length === 0 ? (
         <EmptyState
@@ -37,7 +36,12 @@ function SportsList() {
       ) : (
         <div className="space-y-2.5">
           {sports.map((s) => (
-            <SportCard key={s.id} sport={s} pairs={pairsMap} players={playersMap} />
+            <SportCard
+              key={s.id}
+              sport={s}
+              pairs={byId(pairs.filter((p) => p.sportId === s.id))}
+              players={playersMap}
+            />
           ))}
         </div>
       )}

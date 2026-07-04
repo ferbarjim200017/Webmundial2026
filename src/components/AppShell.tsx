@@ -7,7 +7,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Trophy, LayoutGrid, Shield, User2, Check, Link2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { usePlayers, useUsers, linkOwnPlayer, seedPlayersAndPairs } from "@/lib/db";
+import { usePlayers, useUsers, linkOwnPlayer, seedPlayers } from "@/lib/db";
 import { APP_NAME } from "@/lib/constants";
 import { cn } from "@/lib/helpers";
 import { FullScreenLoader, Spinner } from "./ui";
@@ -44,7 +44,7 @@ function Onboarding() {
   const initTournament = async () => {
     setSeeding(true);
     try {
-      await seedPlayersAndPairs();
+      await seedPlayers();
     } catch (e) {
       console.error(e);
       alert("No se pudo inicializar. ¿Tienes permisos de administrador?");
@@ -84,8 +84,8 @@ function Onboarding() {
         isAdmin ? (
           <div className="card space-y-3 p-5 text-center">
             <p className="text-sm text-slate-300">
-              Todavía no hay jugadores. Como administrador, crea los 10 jugadores y las 5
-              parejas iniciales para empezar.
+              Todavía no hay jugadores. Como administrador, crea los 10 jugadores para
+              empezar (las parejas se definen luego en cada deporte).
             </p>
             <button onClick={initTournament} disabled={seeding} className="btn-primary w-full">
               {seeding ? <Spinner className="h-5 w-5" /> : "Inicializar torneo"}

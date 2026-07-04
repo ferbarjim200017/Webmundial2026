@@ -8,8 +8,8 @@ import { useAuth } from "@/lib/auth";
 import { usePairs, usePlayers, useSports, setPairPhoto, removePairPhoto } from "@/lib/db";
 import { fileToAvatarDataUrl } from "@/lib/image";
 import { byId, pairColor, pairInitials, pairMembers, playerName } from "@/lib/helpers";
-import { computeGeneral } from "@/lib/tournament";
-import type { GeneralRow, Pair, Player } from "@/lib/types";
+import { computeIndividualGeneral } from "@/lib/tournament";
+import type { Pair, Player, Sport } from "@/lib/types";
 
 export default function PerfilPage() {
   return (
@@ -29,11 +29,8 @@ function Perfil() {
 
   const playersMap = byId(players);
   const myName = playerName(playersMap, user.playerId);
-  const myPair = pairs.find(
-    (p) => p.player1Id === user.playerId || p.player2Id === user.playerId
-  );
-  const general = computeGeneral(sports, pairs.map((p) => p.id));
-  const myRow = myPair ? general.find((r) => r.pairId === myPair.id) : undefined;
+  const general = computeIndividualGeneral(sports, pairs, players.map((p) => p.id));
+  const myRow = user.playerId ? general.find((r) => r.playerId === user.playerId) : undefined;
 
   return (
     <div className="space-y-5 animate-fade-up">
@@ -60,13 +57,23 @@ function Perfil() {
             </span>
           )}
         </div>
+        {myRow && (
+          <div className="text-right">
+            <div className="flex items-center justify-end gap-1 text-xs text-slate-400">
+              <Hash className="h-3 w-3" />
+              {myRow.rank}º
+            </div>
+            <p className="text-xl font-extrabold tabular text-white">
+              {myRow.points}
+              <span className="ml-1 text-xs font-normal text-slate-500">pts</span>
+            </p>
+          </div>
+        )}
       </Card>
 
       {/* Jugador vinculado */}
       <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Tu jugador
-        </p>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Tu jugador</p>
         <Card className="flex items-center gap-3">
           <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-lg font-bold text-white">
             {myName.charAt(0)}
@@ -80,10 +87,26 @@ function Perfil() {
         </Card>
       </div>
 
-      {/* Mi pareja */}
-      {myPair && (
-        <MyPairCard pair={myPair} players={playersMap} row={myRow} canEdit />
-      )}
+      {/* Parejas por deporte */}
+      <div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Tus parejas por deporte
+        </p>
+        {sports.length === 0 ? (
+          <Card className="text-center text-sm text-slate-400">Aún no hay deportes.</Card>
+        ) : (
+          <div className="space-y-2.5">
+            {sports.map((s) => {
+              const pair = pairs.find(
+                (p) => p.sportId === s.id && (p.player1Id === user.playerId || p.player2Id === user.playerId)
+              );
+              return (
+                <SportPairCard key={s.id} sport={s} pair={pair} players={playersMap} />
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {isAdmin && (
         <Link href="/admin" className="btn-ghost w-full">
@@ -98,18 +121,16 @@ function Perfil() {
   );
 }
 
-function MyPairCard({
+function SportPairCard({
+  sport,
   pair,
   players,
-  row,
-  canEdit,
 }: {
-  pair: Pair;
+  sport: Sport;
+  pair: Pair | undefined;
   players: Map<string, Player>;
-  row?: GeneralRow;
-  canEdit?: boolean;
 }) {
-  const c = pairColor(pair.color);
+  const c = pairColor(pair?.color);
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [viewer, setViewer] = useState(false);
@@ -118,14 +139,14 @@ function MyPairCard({
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
-    if (!file) return;
+    if (!file || !pair) return;
     setErr(null);
     setBusy(true);
     try {
       const dataUrl = await fileToAvatarDataUrl(file);
       await setPairPhoto(pair.id, dataUrl);
     } catch {
-      setErr("No se pudo subir la foto. Prueba con otra imagen.");
+      setErr("No se pudo subir la foto.");
     } finally {
       setBusy(false);
     }
@@ -133,65 +154,56 @@ function MyPairCard({
 
   return (
     <div>
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Tu pareja</p>
       <div
         className="card flex items-center gap-3"
-        style={{ backgroundImage: `linear-gradient(135deg, ${c.from}20, transparent)` }}
+        style={{ backgroundImage: pair ? `linear-gradient(135deg, ${c.from}18, transparent)` : undefined }}
       >
-        <button
-          type="button"
-          onClick={() => (pair.photo ? setViewer(true) : fileRef.current?.click())}
-          className="relative shrink-0"
-          aria-label={pair.photo ? "Ver foto" : "Subir foto"}
-        >
-          <PairBadge colorKey={pair.color} initials={pairInitials(pair, players)} size={56} photoUrl={pair.photo} />
-          {canEdit && (
-            <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-brand-500 text-ink-950 ring-2 ring-ink-850">
-              {busy ? <Spinner className="h-3 w-3" /> : <Camera className="h-3.5 w-3.5" />}
-            </span>
-          )}
-        </button>
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/5 text-xl">
+          {sport.emoji}
+        </span>
 
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-bold text-white">{pair.name}</p>
-          <p className="truncate text-xs text-slate-400">{pairMembers(pair, players)}</p>
-          {canEdit && (
-            <div className="mt-1 flex items-center gap-3 text-[11px] font-semibold">
-              <button onClick={() => fileRef.current?.click()} className="text-brand-300 hover:text-brand-200">
+        {pair ? (
+          <>
+            <button
+              type="button"
+              onClick={() => (pair.photo ? setViewer(true) : fileRef.current?.click())}
+              className="relative shrink-0"
+              aria-label={pair.photo ? "Ver foto" : "Subir foto"}
+            >
+              <PairBadge colorKey={pair.color} initials={pairInitials(pair, players)} size={44} photoUrl={pair.photo} />
+              <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-brand-500 text-ink-950 ring-2 ring-ink-850">
+                {busy ? <Spinner className="h-3 w-3" /> : <Camera className="h-3 w-3" />}
+              </span>
+            </button>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-semibold text-slate-300">{sport.name}</p>
+              <p className="truncate text-sm font-bold text-white">{pairMembers(pair, players)}</p>
+              <button onClick={() => fileRef.current?.click()} className="text-[11px] font-semibold text-brand-300 hover:text-brand-200">
                 {pair.photo ? "Cambiar foto" : "Subir foto"}
               </button>
               {pair.photo && (
-                <button onClick={() => removePairPhoto(pair.id)} className="text-slate-500 hover:text-slate-300">
+                <button onClick={() => removePairPhoto(pair.id)} className="ml-3 text-[11px] font-semibold text-slate-500 hover:text-slate-300">
                   Quitar
                 </button>
               )}
             </div>
-          )}
-        </div>
-
-        {row && (
-          <div className="text-right">
-            <div className="flex items-center justify-end gap-1 text-xs text-slate-400">
-              <Hash className="h-3 w-3" />
-              {row.rank}º
-            </div>
-            <p className="text-xl font-extrabold tabular text-white">
-              {row.points}
-              <span className="ml-1 text-xs font-normal text-slate-500">pts</span>
-            </p>
+          </>
+        ) : (
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-white">{sport.name}</p>
+            <p className="text-xs text-slate-500">No estás en ninguna pareja de este deporte.</p>
           </div>
         )}
       </div>
 
-      {err && <p className="mt-2 rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{err}</p>}
-
+      {err && <p className="mt-1 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-200">{err}</p>}
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
       <PhotoLightbox
         open={viewer}
         onClose={() => setViewer(false)}
-        src={pair.photo}
-        title={pair.name}
-        subtitle={pairMembers(pair, players)}
+        src={pair?.photo}
+        title={pair ? pairMembers(pair, players) : undefined}
+        subtitle={sport.name}
       />
     </div>
   );

@@ -14,7 +14,9 @@ import {
   query,
   setDoc,
   updateDoc,
+  where,
   writeBatch,
+  type WriteBatch,
 } from "firebase/firestore";
 import { db, isFirebaseConfigured } from "./firebase";
 import {
@@ -97,48 +99,56 @@ export function useGrandFinal(): { data: GrandFinal | null; loading: boolean } {
 //  Inicialización del torneo
 // ---------------------------------------------------------------------
 
-/** Crea los 10 jugadores y 5 parejas por defecto (si no existen). */
-export async function seedPlayersAndPairs(): Promise<void> {
+/** Crea los 10 jugadores (si no existen). */
+export async function seedPlayers(): Promise<void> {
   const batch = writeBatch(db);
-
-  const playerIds: string[] = [];
   PLAYER_NAMES.forEach((name, i) => {
     const ref = doc(collection(db, "players"));
-    playerIds.push(ref.id);
     batch.set(ref, { name, order: i });
   });
+  await batch.commit();
+}
 
-  // 5 parejas: (1,2)(3,4)(5,6)(7,8)(9,10)
+/**
+ * Añade a un lote un deporte con sus 5 parejas por defecto
+ * ((1,2)(3,4)(5,6)(7,8)(9,10)) y la fase de grupos generada.
+ */
+function buildSport(
+  batch: WriteBatch,
+  meta: { name: string; emoji: string },
+  order: number,
+  playerIds: string[]
+): void {
+  const sportRef = doc(collection(db, "sports"));
+  const pairIds: string[] = [];
+
   for (let p = 0; p < 5; p++) {
-    const ref = doc(collection(db, "pairs"));
-    const p1 = playerIds[p * 2];
-    const p2 = playerIds[p * 2 + 1];
-    batch.set(ref, {
+    const pairRef = doc(collection(db, "pairs"));
+    pairIds.push(pairRef.id);
+    batch.set(pairRef, {
+      sportId: sportRef.id,
       name: `Pareja ${p + 1}`,
-      player1Id: p1,
-      player2Id: p2,
+      player1Id: playerIds[p * 2] ?? "",
+      player2Id: playerIds[p * 2 + 1] ?? "",
       color: DEFAULT_PAIR_COLORS[p] ?? "emerald",
       order: p,
     });
   }
 
-  await batch.commit();
+  batch.set(sportRef, {
+    name: meta.name,
+    emoji: meta.emoji,
+    order,
+    createdAt: Date.now(),
+    group: { matches: pairIds.length >= 2 ? roundRobin(pairIds) : [] },
+    knockout: emptyKnockout(),
+  });
 }
 
-/** Crea los deportes por defecto con su fase de grupos ya generada. */
-export async function seedSports(pairIds: string[]): Promise<void> {
+/** Crea los deportes por defecto, cada uno con sus 5 parejas y su liga. */
+export async function seedSports(playerIds: string[]): Promise<void> {
   const batch = writeBatch(db);
-  DEFAULT_SPORTS.forEach((s, i) => {
-    const ref = doc(collection(db, "sports"));
-    batch.set(ref, {
-      name: s.name,
-      emoji: s.emoji,
-      order: i,
-      createdAt: Date.now(),
-      group: { matches: pairIds.length >= 2 ? roundRobin(pairIds) : [] },
-      knockout: emptyKnockout(),
-    });
-  });
+  DEFAULT_SPORTS.forEach((s, i) => buildSport(batch, s, i, playerIds));
   await batch.commit();
 }
 
@@ -151,7 +161,7 @@ export async function updatePlayerName(id: string, name: string) {
 }
 
 // ---------------------------------------------------------------------
-//  Parejas
+//  Parejas (por deporte)
 // ---------------------------------------------------------------------
 
 export async function savePair(
@@ -187,16 +197,11 @@ export async function addSport(
   name: string,
   emoji: string,
   order: number,
-  pairIds: string[]
+  playerIds: string[]
 ) {
-  await addDoc(collection(db, "sports"), {
-    name,
-    emoji,
-    order,
-    createdAt: Date.now(),
-    group: { matches: pairIds.length >= 2 ? roundRobin(pairIds) : [] },
-    knockout: emptyKnockout(),
-  });
+  const batch = writeBatch(db);
+  buildSport(batch, { name, emoji }, order, playerIds);
+  await batch.commit();
 }
 
 export async function updateSportMeta(
@@ -206,20 +211,12 @@ export async function updateSportMeta(
   await updateDoc(doc(db, "sports", id), data);
 }
 
+/** Borra un deporte y todas sus parejas. */
 export async function deleteSport(id: string) {
-  await deleteDoc(doc(db, "sports", id));
-}
-
-/**
- * Reinicia el torneo: borra TODOS los deportes (y por tanto todos los
- * resultados y la clasificación general queda a cero). Conserva jugadores y
- * parejas.
- */
-export async function deleteAllSports(): Promise<void> {
-  const snap = await getDocs(collection(db, "sports"));
-  if (snap.empty) return;
+  const pairsSnap = await getDocs(query(collection(db, "pairs"), where("sportId", "==", id)));
   const batch = writeBatch(db);
-  snap.forEach((d) => batch.delete(d.ref));
+  pairsSnap.forEach((d) => batch.delete(d.ref));
+  batch.delete(doc(db, "sports", id));
   await batch.commit();
 }
 
@@ -251,41 +248,23 @@ export async function setGrandFinalKnockoutResult(
   );
 }
 
-/** Crea (o regenera) el desempate entre las parejas empatadas en el corte. */
-export async function createGrandFinalTiebreak(pairIds: string[], spots: number) {
-  await setDoc(
-    grandFinalRef(),
-    { tiebreak: { pairIds, spots, matches: roundRobin(pairIds) } },
-    { merge: true }
-  );
-}
-
-export async function setGrandFinalTiebreakResult(
-  gf: GrandFinal,
-  matchId: string,
-  homeScore: number | null,
-  awayScore: number | null
-) {
-  if (!gf.tiebreak) return;
-  const matches = gf.tiebreak.matches.map((m) =>
-    m.id === matchId
-      ? { ...m, homeScore, awayScore, played: homeScore !== null && awayScore !== null }
-      : m
-  );
-  await setDoc(grandFinalRef(), { tiebreak: { ...gf.tiebreak, matches } }, { merge: true });
-}
-
-export async function clearGrandFinalTiebreak() {
-  await setDoc(grandFinalRef(), { tiebreak: null }, { merge: true });
-}
-
 export async function resetGrandFinal() {
-  await setDoc(grandFinalRef(), { tiebreak: null, knockout: emptyKnockout() });
+  await setDoc(grandFinalRef(), { knockout: emptyKnockout() });
 }
 
-/** Reinicio total de marcadores: borra deportes y resetea la Gran Final. */
+/**
+ * Reinicio total: borra TODOS los deportes y TODAS las parejas, y resetea la
+ * Gran Final. Conserva los jugadores.
+ */
 export async function resetTournamentScores() {
-  await deleteAllSports();
+  const [sportsSnap, pairsSnap] = await Promise.all([
+    getDocs(collection(db, "sports")),
+    getDocs(collection(db, "pairs")),
+  ]);
+  const batch = writeBatch(db);
+  sportsSnap.forEach((d) => batch.delete(d.ref));
+  pairsSnap.forEach((d) => batch.delete(d.ref));
+  await batch.commit();
   await resetGrandFinal();
 }
 

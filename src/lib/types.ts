@@ -23,9 +23,11 @@ export interface Player {
   order: number;
 }
 
-/** Pareja fija que compite en todos los deportes. */
+/** Pareja de un deporte concreto (las parejas varían entre deportes). */
 export interface Pair {
   id: string;
+  /** Deporte al que pertenece esta pareja. */
+  sportId: string;
   name: string;
   player1Id: string;
   player2Id: string;
@@ -74,16 +76,11 @@ export interface Sport {
 }
 
 /**
- * Gran Final: las 4 mejores parejas de la clasificación general luchan por el
- * gran título. Documento único en config/grandFinal.
+ * Gran Final: las 4 parejas se forman con los 8 mejores de la general
+ * individual (1º+2º, 3º+4º, 5º+6º, 7º+8º) y disputan el cuadro por el gran
+ * título. Documento único en config/grandFinal (solo guarda el cuadro).
  */
 export interface GrandFinal {
-  /** Desempate cuando hay empate a puntos en el corte (4º). */
-  tiebreak: {
-    pairIds: string[];
-    spots: number;
-    matches: GroupMatch[];
-  } | null;
   knockout: Knockout;
 }
 
@@ -114,13 +111,14 @@ export interface SportResult {
   thirdPairId: string | null;
 }
 
-export interface GeneralRow {
-  pairId: string;
+/** Fila de la clasificación general individual (por jugador). */
+export interface PlayerRow {
+  playerId: string;
   points: number;
   gold: number;
   silver: number;
   bronze: number;
-  /** Deportes en los que ha participado con resultado. */
+  /** Número de podios (oro+plata+bronce). */
   played: number;
   rank: number;
 }

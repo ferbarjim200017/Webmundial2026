@@ -118,6 +118,41 @@ export function PairBadge({
   );
 }
 
+/** Avatar circular de un jugador (inicial + color). */
+export function PlayerBadge({
+  name,
+  size = 40,
+  rank,
+  colorKey,
+}: {
+  name: string;
+  size?: number;
+  rank?: number;
+  colorKey?: string;
+}) {
+  const c = pairColor(colorKey);
+  return (
+    <span
+      className="relative inline-flex shrink-0 items-center justify-center rounded-full font-extrabold text-white shadow-md ring-2"
+      style={{
+        width: size,
+        height: size,
+        fontSize: size * 0.42,
+        backgroundImage: `linear-gradient(135deg, ${c.from}, ${c.to})`,
+        // @ts-expect-error css var
+        "--tw-ring-color": `${c.ring}66`,
+      }}
+    >
+      {(name || "?").charAt(0).toUpperCase()}
+      {rank && (
+        <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-ink-900 text-[10px] font-bold text-slate-200 ring-1 ring-white/10">
+          {rank}
+        </span>
+      )}
+    </span>
+  );
+}
+
 /** Visor de foto a pantalla completa (estilo WhatsApp). */
 export function PhotoLightbox({
   open,
