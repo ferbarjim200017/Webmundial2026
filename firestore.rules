@@ -36,10 +36,12 @@ service cloud.firestore {
         ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.playerId
         : '';
     }
-    // ¿El usuario forma parte de esta pareja?
+    // ¿El usuario forma parte de esta pareja? (incluye al tercer integrante)
     function isInPair() {
       return isSignedIn()
-        && (resource.data.player1Id == myPlayerId() || resource.data.player2Id == myPlayerId());
+        && (resource.data.player1Id == myPlayerId()
+            || resource.data.player2Id == myPlayerId()
+            || resource.data.player3Id == myPlayerId());
     }
     // ¿El cambio afecta SOLO al campo de la foto?
     function onlyPhotoChanged() {

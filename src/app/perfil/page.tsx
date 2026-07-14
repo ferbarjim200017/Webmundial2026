@@ -98,7 +98,11 @@ function Perfil() {
           <div className="space-y-2.5">
             {sports.map((s) => {
               const pair = pairs.find(
-                (p) => p.sportId === s.id && (p.player1Id === user.playerId || p.player2Id === user.playerId)
+                (p) =>
+                  p.sportId === s.id &&
+                  (p.player1Id === user.playerId ||
+                    p.player2Id === user.playerId ||
+                    p.player3Id === user.playerId)
               );
               return (
                 <SportPairCard key={s.id} sport={s} pair={pair} players={playersMap} />

@@ -1,6 +1,6 @@
 # 🏆 Mundial 2026 — Marcador del torneo
 
-Web **mobile-first** para seguir un torneo entre amigos: **10 jugadores fijos**, **5 parejas**, varios deportes (Tenis, Bádminton, Vóley, Fútbol… y los que añadas) y una **clasificación general** acumulada.
+Web **mobile-first** para seguir un torneo entre amigos: **11 jugadores fijos**, **5 parejas** por deporte (una de ellas un **trío** con el comodín), varios deportes (Tenis, Bádminton, Vóley, Fútbol… y los que añadas) y una **clasificación general** acumulada.
 
 Construida con **Next.js 15 + React 19 + Firebase (Auth + Firestore) + Tailwind CSS**. Pensada para verse en el móvil y desplegarse en **Vercel**.
 
@@ -22,12 +22,14 @@ Puntos que van a la **tabla general** por cada deporte:
 | 🥈 Subcampeón |   2    |
 | 🥉 3er puesto |   1    |
 
-Las parejas son fijas y acumulan puntos a lo largo de todos los deportes.
+Las parejas se sortean por deporte y acumulan puntos a lo largo de todos los deportes.
+
+> **Comodín (Alberto).** Hay 11 jugadores: 10 forman 5 parejas mixtas (un chico y una chica) y el 11º, Alberto, se une **al azar como tercer integrante** de una de esas parejas en **cada deporte** → un trío. Si ese trío queda campeón, subcampeón o tercero, **los tres** miembros suman los puntos correspondientes en la general.
 
 ## 👥 Acceso y roles
 
 - **Pantalla de inicio de sesión** (Google o correo/contraseña) la primera vez.
-- Tras entrar, cada persona **vincula su cuenta a uno de los 10 jugadores**. Queda fijado salvo que un admin lo cambie.
+- Tras entrar, cada persona **vincula su cuenta a uno de los 11 jugadores**. Queda fijado salvo que un admin lo cambie.
 - **Solo los administradores** pueden crear/editar jugadores, parejas, deportes y **apuntar resultados**. El resto solo consulta.
 - Los administradores se definen por correo (ver variable `NEXT_PUBLIC_ADMIN_EMAILS`).
 

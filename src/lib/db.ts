@@ -22,6 +22,7 @@ import { db, isFirebaseConfigured } from "./firebase";
 import {
   DEFAULT_PAIR_COLORS,
   DEFAULT_SPORTS,
+  EXTRA_PLAYER_NAME,
   PLAYER_NAMES,
   genderOf,
 } from "./constants";
@@ -100,14 +101,25 @@ export function useGrandFinal(): { data: GrandFinal | null; loading: boolean } {
 //  Inicialización del torneo
 // ---------------------------------------------------------------------
 
-/** Crea los 10 jugadores con su género (si no existen). */
-export async function seedPlayers(): Promise<void> {
+/**
+ * Crea los jugadores de PLAYER_NAMES que aún no existan (por nombre), con su
+ * género. Es idempotente: en un torneo nuevo los crea todos y, en uno ya en
+ * marcha, solo añade los que falten (p. ej. Alberto) sin tocar el resto.
+ * Devuelve cuántos jugadores se han añadido.
+ */
+export async function seedPlayers(): Promise<number> {
+  const snap = await getDocs(collection(db, "players"));
+  const existing = new Set(snap.docs.map((d) => (d.data() as Player).name));
   const batch = writeBatch(db);
+  let added = 0;
   PLAYER_NAMES.forEach((name, i) => {
+    if (existing.has(name)) return;
     const ref = doc(collection(db, "players"));
     batch.set(ref, { name, order: i, gender: genderOf(name) });
+    added++;
   });
-  await batch.commit();
+  if (added > 0) await batch.commit();
+  return added;
 }
 
 /** Baraja una copia del array (Fisher-Yates). */
@@ -139,10 +151,44 @@ function playerGender(p: Player): "M" | "F" {
   return p.gender ?? genderOf(p.name);
 }
 
+/** Datos de una pareja listos para guardar (sin id ni deporte). */
+interface Pairing {
+  player1Id: string;
+  player2Id: string;
+  player3Id: string | null;
+}
+
 /**
- * Añade a un lote un deporte con sus parejas MIXTAS aleatorias y la fase de
- * grupos generada. Cada llamada baraja por separado → parejas distintas en
- * cada deporte.
+ * Forma las parejas MIXTAS de un deporte y añade al jugador "comodín" (Alberto)
+ * como TERCER integrante de una pareja elegida al azar → un trío. El comodín se
+ * aparta antes del sorteo para no descuadrar el reparto chico/chica del resto.
+ * Si no está entre los jugadores, se comporta como antes (solo parejas de dos).
+ */
+function buildPairings(players: Player[]): Pairing[] {
+  const extra = players.find((p) => p.name === EXTRA_PLAYER_NAME) ?? null;
+  const rest = extra ? players.filter((p) => p.id !== extra.id) : players;
+
+  const males = rest.filter((p) => playerGender(p) === "M").map((p) => p.id);
+  const females = rest.filter((p) => playerGender(p) === "F").map((p) => p.id);
+  const pairings: Pairing[] = mixedPairs(males, females).map(([a, b]) => ({
+    player1Id: a,
+    player2Id: b,
+    player3Id: null,
+  }));
+
+  // El comodín se une a una pareja aleatoria como tercer integrante.
+  if (extra && pairings.length > 0) {
+    const idx = Math.floor(Math.random() * pairings.length);
+    pairings[idx].player3Id = extra.id;
+  }
+
+  return pairings;
+}
+
+/**
+ * Añade a un lote un deporte con sus parejas MIXTAS aleatorias (una de ellas un
+ * trío con el comodín) y la fase de grupos generada. Cada llamada baraja por
+ * separado → parejas distintas en cada deporte.
  */
 function buildSport(
   batch: WriteBatch,
@@ -151,19 +197,17 @@ function buildSport(
   players: Player[]
 ): void {
   const sportRef = doc(collection(db, "sports"));
-  const males = players.filter((p) => playerGender(p) === "M").map((p) => p.id);
-  const females = players.filter((p) => playerGender(p) === "F").map((p) => p.id);
-  const pairing = mixedPairs(males, females);
   const pairIds: string[] = [];
 
-  pairing.forEach(([a, b], p) => {
+  buildPairings(players).forEach((pr, p) => {
     const pairRef = doc(collection(db, "pairs"));
     pairIds.push(pairRef.id);
     batch.set(pairRef, {
       sportId: sportRef.id,
       name: `Pareja ${p + 1}`,
-      player1Id: a,
-      player2Id: b,
+      player1Id: pr.player1Id,
+      player2Id: pr.player2Id,
+      player3Id: pr.player3Id,
       color: DEFAULT_PAIR_COLORS[p] ?? "emerald",
       order: p,
     });
@@ -244,17 +288,16 @@ export async function regeneratePairs(sportId: string, players: Player[]) {
   const batch = writeBatch(db);
   oldSnap.forEach((d) => batch.delete(d.ref));
 
-  const males = players.filter((p) => playerGender(p) === "M").map((p) => p.id);
-  const females = players.filter((p) => playerGender(p) === "F").map((p) => p.id);
   const pairIds: string[] = [];
-  mixedPairs(males, females).forEach(([a, b], p) => {
+  buildPairings(players).forEach((pr, p) => {
     const pairRef = doc(collection(db, "pairs"));
     pairIds.push(pairRef.id);
     batch.set(pairRef, {
       sportId,
       name: `Pareja ${p + 1}`,
-      player1Id: a,
-      player2Id: b,
+      player1Id: pr.player1Id,
+      player2Id: pr.player2Id,
+      player3Id: pr.player3Id,
       color: DEFAULT_PAIR_COLORS[p] ?? "emerald",
       order: p,
     });

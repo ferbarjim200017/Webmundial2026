@@ -33,6 +33,11 @@ export interface Pair {
   name: string;
   player1Id: string;
   player2Id: string;
+  /**
+   * Tercer integrante opcional (el comodín Alberto). Solo una pareja por
+   * deporte lo tiene → es un trío. El resto de parejas son de dos.
+   */
+  player3Id?: string | null;
   /** Color identificativo (clave de PAIR_COLORS). */
   color: string;
   order: number;

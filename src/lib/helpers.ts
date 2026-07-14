@@ -21,15 +21,21 @@ export function pairColor(key?: string) {
   return PAIR_COLORS[key ?? "emerald"] ?? PAIR_COLORS.emerald;
 }
 
-/** Nombres de los dos jugadores de una pareja. */
-export function pairMembers(pair: Pair | undefined, players: Map<string, Player>): string {
-  if (!pair) return "";
-  const a = playerName(players, pair.player1Id);
-  const b = playerName(players, pair.player2Id);
-  return `${a} & ${b}`;
+/** IDs de los integrantes de una pareja (2, o 3 si es un trío con comodín). */
+export function pairPlayerIds(pair: Pair | undefined): string[] {
+  if (!pair) return [];
+  return [pair.player1Id, pair.player2Id, pair.player3Id].filter(Boolean) as string[];
 }
 
-/** Iniciales para el avatar de la pareja. */
+/** Nombres de los integrantes de una pareja (dos, o tres si es un trío). */
+export function pairMembers(pair: Pair | undefined, players: Map<string, Player>): string {
+  if (!pair) return "";
+  return pairPlayerIds(pair)
+    .map((id) => playerName(players, id))
+    .join(" & ");
+}
+
+/** Iniciales para el avatar de la pareja (los dos primeros integrantes). */
 export function pairInitials(pair: Pair | undefined, players: Map<string, Player>): string {
   if (!pair) return "??";
   const a = playerName(players, pair.player1Id).charAt(0);

@@ -2,7 +2,7 @@
 //  Constantes y valores por defecto
 // =====================================================================
 
-/** Los 10 jugadores fijos, en orden. */
+/** Los 11 jugadores fijos, en orden. */
 export const PLAYER_NAMES = [
   "Fernando",
   "Gonzalo",
@@ -14,9 +14,18 @@ export const PLAYER_NAMES = [
   "Juan",
   "Ana",
   "Maria",
+  "Alberto",
 ] as const;
 
-/** Nombres femeninos entre los 10 jugadores (el resto son masculinos). */
+/**
+ * Jugador "comodín": no entra en el sorteo de parejas mixtas, sino que se une
+ * como TERCER integrante a una pareja elegida al azar en cada deporte. Así se
+ * mantienen 5 parejas por deporte (un chico + una chica), pero una de ellas es
+ * un trío. Si su trío gana, los tres suman puntos en la general.
+ */
+export const EXTRA_PLAYER_NAME = "Alberto";
+
+/** Nombres femeninos entre los jugadores (el resto son masculinos). */
 export const FEMALE_PLAYER_NAMES = new Set([
   "Elena G",
   "Elena B",

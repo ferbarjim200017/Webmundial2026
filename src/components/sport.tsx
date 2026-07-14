@@ -12,6 +12,7 @@ import {
   pairColor,
   pairInitials,
   pairMembers,
+  pairPlayerIds,
   playerName,
 } from "@/lib/helpers";
 import { PAIR_COLOR_KEYS } from "@/lib/constants";
@@ -924,8 +925,8 @@ export function PlayerSportsModal({
   const rows = playerId
     ? sports.map((s) => {
         const sportPairs = pairs.filter((p) => p.sportId === s.id);
-        const myPair = sportPairs.find(
-          (p) => p.player1Id === playerId || p.player2Id === playerId
+        const myPair = sportPairs.find((p) =>
+          pairPlayerIds(p).includes(playerId)
         );
         let medal = "";
         let pts = 0;
@@ -935,12 +936,10 @@ export function PlayerSportsModal({
           else if (res.runnerUpPairId === myPair.id) { medal = "🥈"; pts = 2; }
           else if (res.thirdPairId === myPair.id) { medal = "🥉"; pts = 1; }
         }
-        const partnerId = myPair
-          ? myPair.player1Id === playerId
-            ? myPair.player2Id
-            : myPair.player1Id
-          : null;
-        return { sport: s, partnerId, medal, pts };
+        const partnerIds = myPair
+          ? pairPlayerIds(myPair).filter((id) => id !== playerId)
+          : [];
+        return { sport: s, partnerIds, medal, pts };
       })
     : [];
   const total = rows.reduce((a, r) => a + r.pts, 0);
@@ -970,7 +969,9 @@ export function PlayerSportsModal({
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-white">{r.sport.name}</p>
                   <p className="truncate text-[11px] text-slate-400">
-                    {r.partnerId ? `con ${playerName(players, r.partnerId)}` : "sin pareja"}
+                    {r.partnerIds.length
+                      ? `con ${r.partnerIds.map((id) => playerName(players, id)).join(" y ")}`
+                      : "sin pareja"}
                   </p>
                 </div>
                 {r.medal ? (

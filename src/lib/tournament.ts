@@ -324,9 +324,10 @@ export function pairMatchesInSport(
 // ---------- Clasificación general (individual, por jugador) ----------
 
 /**
- * Clasificación general por JUGADOR. En cada deporte, ambos jugadores de la
+ * Clasificación general por JUGADOR. En cada deporte, TODOS los jugadores de la
  * pareja campeona suman 3 (oro), la subcampeona 2 (plata) y la tercera 1
- * (bronce). Como las parejas son por deporte, se pasan todas las parejas.
+ * (bronce) — incluido el tercer integrante (comodín) de la pareja que sea trío.
+ * Como las parejas son por deporte, se pasan todas las parejas.
  */
 export function computeIndividualGeneral(
   sports: Sport[],
@@ -347,7 +348,8 @@ export function computeIndividualGeneral(
     if (!pairId) return;
     const pair = byPairId.get(pairId);
     if (!pair) return;
-    for (const pid of [pair.player1Id, pair.player2Id]) {
+    for (const pid of [pair.player1Id, pair.player2Id, pair.player3Id]) {
+      if (!pid) continue;
       const row = rows.get(pid);
       if (!row) continue;
       row.points += pts;

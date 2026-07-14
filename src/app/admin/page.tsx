@@ -42,6 +42,7 @@ import { fileToAvatarDataUrl } from "@/lib/image";
 import {
   PAIR_COLORS,
   PAIR_COLOR_KEYS,
+  PLAYER_NAMES,
   SPORT_EMOJIS,
 } from "@/lib/constants";
 import { byId, cn, pairColor, pairInitials, pairMembers, playerName } from "@/lib/helpers";
@@ -134,14 +135,31 @@ function SetupSection() {
           <div className="flex-1">
             <p className="font-semibold text-white">1 · Jugadores</p>
             <p className="mb-3 text-sm text-slate-400">
-              Crea los 10 jugadores. Las parejas se definen luego dentro de cada deporte.
+              Crea los {PLAYER_NAMES.length} jugadores. Las parejas se definen luego dentro de cada deporte.
+              {players.length > 0 && players.length < PLAYER_NAMES.length && (
+                <>
+                  {" "}
+                  <b className="text-slate-200">
+                    Faltan {PLAYER_NAMES.length - players.length} por añadir (p. ej. Alberto)
+                  </b>
+                  ; pulsa el botón para incorporarlos sin borrar nada.
+                </>
+              )}
             </p>
             <button
-              disabled={busy !== null || players.length > 0}
-              onClick={() => run("pp", seedPlayers)}
+              disabled={busy !== null || players.length >= PLAYER_NAMES.length}
+              onClick={() => run("pp", () => seedPlayers().then(() => undefined))}
               className="btn-primary w-full"
             >
-              {busy === "pp" ? <Spinner className="h-5 w-5" /> : players.length > 0 ? `✓ ${players.length} jugadores ya creados` : "Crear jugadores"}
+              {busy === "pp" ? (
+                <Spinner className="h-5 w-5" />
+              ) : players.length >= PLAYER_NAMES.length ? (
+                `✓ ${players.length} jugadores ya creados`
+              ) : players.length > 0 ? (
+                `Añadir jugadores que faltan (${PLAYER_NAMES.length - players.length})`
+              ) : (
+                "Crear jugadores"
+              )}
             </button>
           </div>
         </div>
@@ -153,7 +171,7 @@ function SetupSection() {
           <div className="flex-1">
             <p className="font-semibold text-white">2 · Deportes</p>
             <p className="mb-3 text-sm text-slate-400">
-              Crea Tenis, Bádminton, Vóley y Fútbol. Cada deporte forma sus 5 parejas <b className="text-slate-200">mixtas al azar</b> (un chico y una chica), distintas en cada deporte.
+              Crea Tenis, Bádminton, Vóley y Fútbol. Cada deporte forma sus 5 parejas <b className="text-slate-200">mixtas al azar</b> (un chico y una chica), distintas en cada deporte, y una de ellas será un <b className="text-slate-200">trío con el comodín</b> (Alberto).
             </p>
             <button
               disabled={busy !== null || players.length < 2 || sports.length > 0}
@@ -305,7 +323,12 @@ function PairsSection() {
           <div key={pair.id} className="flex items-center gap-3 rounded-xl border border-white/10 bg-ink-850/60 p-3">
             <PairBadge colorKey={pair.color} initials={pairInitials(pair, playersMap)} size={40} photoUrl={pair.photo} />
             <div className="min-w-0 flex-1">
-              <p className="truncate font-semibold text-white">{pair.name}</p>
+              <p className="flex items-center gap-1.5 truncate font-semibold text-white">
+                {pair.name}
+                {pair.player3Id && (
+                  <span className="chip shrink-0 bg-amber-500/15 text-[10px] text-amber-300">Trío</span>
+                )}
+              </p>
               <p className="truncate text-xs text-slate-400">{pairMembers(pair, playersMap)}</p>
             </div>
             <button onClick={() => setEditing(pair)} className="btn-ghost px-2.5 py-2">
@@ -372,6 +395,7 @@ function PairEditor({
   const [color, setColor] = useState(pair?.color ?? PAIR_COLOR_KEYS[0]);
   const [p1, setP1] = useState(pair?.player1Id ?? "");
   const [p2, setP2] = useState(pair?.player2Id ?? "");
+  const [p3, setP3] = useState(pair?.player3Id ?? "");
   const [photo, setPhoto] = useState<string | null>(pair?.photo ?? null);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -387,6 +411,7 @@ function PairEditor({
     setColor(pair?.color ?? PAIR_COLOR_KEYS[0]);
     setP1(pair?.player1Id ?? "");
     setP2(pair?.player2Id ?? "");
+    setP3(pair?.player3Id ?? "");
     setPhoto(pair?.photo ?? null);
     setErr(null);
   }
@@ -423,6 +448,7 @@ function PairEditor({
     if (!name.trim()) return setErr("Ponle un nombre a la pareja.");
     if (!p1 || !p2) return setErr("Selecciona los dos jugadores.");
     if (p1 === p2) return setErr("Los dos jugadores deben ser distintos.");
+    if (p3 && (p3 === p1 || p3 === p2)) return setErr("El tercer jugador debe ser distinto de los otros dos.");
     if (!pair) return;
     setBusy(true);
     try {
@@ -431,6 +457,7 @@ function PairEditor({
         name: name.trim(),
         player1Id: p1,
         player2Id: p2,
+        player3Id: p3 || null,
         color,
         order: pair.order,
       });
@@ -472,9 +499,21 @@ function PairEditor({
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <PlayerSelect label="Jugador 1" value={p1} onChange={setP1} players={players} exclude={p2} />
-          <PlayerSelect label="Jugador 2" value={p2} onChange={setP2} players={players} exclude={p1} />
+          <PlayerSelect label="Jugador 1" value={p1} onChange={setP1} players={players} exclude={[p2, p3]} />
+          <PlayerSelect label="Jugador 2" value={p2} onChange={setP2} players={players} exclude={[p1, p3]} />
         </div>
+
+        <PlayerSelect
+          label="Jugador 3 (opcional · comodín)"
+          value={p3}
+          onChange={setP3}
+          players={players}
+          exclude={[p1, p2]}
+          allowEmpty
+        />
+        <p className="-mt-2 text-[11px] text-slate-500">
+          Deja el tercer jugador vacío para una pareja normal de dos. Asígnalo (p. ej. Alberto) para convertirla en un trío.
+        </p>
 
         <div>
           <label className="mb-1.5 block text-xs font-semibold text-slate-400">Color</label>
@@ -513,20 +552,27 @@ function PlayerSelect({
   onChange,
   players,
   exclude,
+  allowEmpty,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   players: Player[];
-  exclude?: string;
+  /** Uno o varios ids que no deben poder elegirse (los ya usados en la pareja). */
+  exclude?: string | Array<string | undefined>;
+  /** Muestra la opción "Sin asignar" (para el tercer jugador opcional). */
+  allowEmpty?: boolean;
 }) {
+  const excluded = new Set(
+    (Array.isArray(exclude) ? exclude : [exclude]).filter(Boolean) as string[]
+  );
   return (
     <div>
       <label className="mb-1 block text-xs font-semibold text-slate-400">{label}</label>
       <select className="input" value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">—</option>
+        <option value="">{allowEmpty ? "Sin asignar" : "—"}</option>
         {players
-          .filter((p) => p.id !== exclude)
+          .filter((p) => p.id === value || !excluded.has(p.id))
           .map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -681,7 +727,7 @@ function SportEditor({
         </div>
         {!sport && (
           <p className="text-xs text-slate-500">
-            Se crearán 5 parejas mixtas al azar (chico + chica) y su fase de grupos. Podrás ajustarlas en Parejas.
+            Se crearán 5 parejas mixtas al azar (chico + chica), una de ellas un trío con el comodín (Alberto), y su fase de grupos. Podrás ajustarlas en Parejas.
           </p>
         )}
         {err && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{err}</p>}
