@@ -19,9 +19,11 @@ function playerColorKey(players: Map<string, Player>, id: string): string {
 export function Podium({
   rows,
   players,
+  onPlayerClick,
 }: {
   rows: PlayerRow[];
   players: Map<string, Player>;
+  onPlayerClick?: (playerId: string) => void;
 }) {
   const top = rows.slice(0, 3);
   if (top.length === 0) return null;
@@ -34,7 +36,13 @@ export function Podium({
         const c = pairColor(playerColorKey(players, row.playerId));
         const isFirst = row.rank === 1;
         return (
-          <div key={row.playerId} className="flex flex-1 flex-col items-center">
+          <button
+            key={row.playerId}
+            type="button"
+            disabled={!onPlayerClick}
+            onClick={() => onPlayerClick?.(row.playerId)}
+            className="flex flex-1 flex-col items-center transition enabled:hover:-translate-y-0.5 disabled:cursor-default"
+          >
             {isFirst && (
               <Crown className="mb-1 h-6 w-6 animate-float text-gold drop-shadow-[0_0_10px_rgba(251,191,36,0.8)]" />
             )}
@@ -70,7 +78,7 @@ export function Podium({
                 </div>
               </div>
             </div>
-          </div>
+          </button>
         );
       })}
     </div>

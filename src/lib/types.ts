@@ -129,3 +129,49 @@ export interface PlayerRow {
   played: number;
   rank: number;
 }
+
+export type Medal = "gold" | "silver" | "bronze";
+export type MatchOutcome = "win" | "loss" | "draw";
+
+/** Rendimiento de un jugador en un deporte concreto (perfil individual). */
+export interface PlayerSportStat {
+  sportId: string;
+  sportName: string;
+  sportEmoji: string;
+  pairId: string | null;
+  /** Compañeros de pareja (uno, o dos si es un trío). */
+  partnerIds: string[];
+  medal: Medal | null;
+  /** Puntos ganados en este deporte (0–3). */
+  points: number;
+  /** Puntos acumulados hasta este deporte (incluido). */
+  cumulative: number;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+}
+
+/** Perfil completo de un jugador: totales, forma, racha y desglose por deporte. */
+export interface PlayerProfile {
+  playerId: string;
+  totalPoints: number;
+  gold: number;
+  silver: number;
+  bronze: number;
+  /** Podios totales (oro+plata+bronce). */
+  podiums: number;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  /** % de victorias sobre partidos jugados (0–100). */
+  winRate: number;
+  /** Deporte donde más puntos ha sumado (o null si aún ninguno). */
+  bestSport: { name: string; emoji: string; points: number } | null;
+  /** Resultados de los partidos jugados, en orden cronológico. */
+  form: MatchOutcome[];
+  /** Racha actual (últimos resultados iguales seguidos). */
+  streak: { type: MatchOutcome | null; count: number };
+  perSport: PlayerSportStat[];
+}

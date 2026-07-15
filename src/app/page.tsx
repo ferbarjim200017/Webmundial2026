@@ -1,11 +1,11 @@
 "use client";
-import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Info, Trophy, ChevronRight } from "lucide-react";
 import { Protected } from "@/components/AppShell";
 import { Card, EmptyState, FullScreenLoader, SectionTitle } from "@/components/ui";
 import { Podium, GeneralTable } from "@/components/standings";
-import { GrandFinal, PlayerSportsModal } from "@/components/sport";
+import { GrandFinal } from "@/components/sport";
 import { useAuth } from "@/lib/auth";
 import { usePairs, usePlayers, useSports } from "@/lib/db";
 import { byId } from "@/lib/helpers";
@@ -24,9 +24,11 @@ function GeneralStandings() {
   const { data: pairs, loading: lpairs } = usePairs();
   const { data: players, loading: lpl } = usePlayers();
   const { data: sports, loading: ls } = useSports();
-  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const router = useRouter();
 
   if (lpairs || lpl || ls) return <FullScreenLoader />;
+
+  const goToPlayer = (id: string) => router.push(`/jugadores/${id}`);
 
   const playerIds = players.map((p) => p.id);
   const playersMap = byId(players);
@@ -73,7 +75,7 @@ function GeneralStandings() {
 
       {hasScores ? (
         <Card className="bg-gradient-to-b from-white/[0.06] to-transparent">
-          <Podium rows={general} players={playersMap} />
+          <Podium rows={general} players={playersMap} onPlayerClick={goToPlayer} />
         </Card>
       ) : (
         <EmptyState
@@ -83,8 +85,8 @@ function GeneralStandings() {
         />
       )}
 
-      <GeneralTable rows={general} players={playersMap} onPlayerClick={setSelectedPlayerId} />
-      <p className="-mt-3 text-center text-[11px] text-slate-500">Toca un jugador para ver su resumen por deportes</p>
+      <GeneralTable rows={general} players={playersMap} onPlayerClick={goToPlayer} />
+      <p className="-mt-3 text-center text-[11px] text-slate-500">Toca un jugador para ver su perfil y estadísticas</p>
 
       <GrandFinal sports={sports} pairs={pairs} players={playersMap} isAdmin={isAdmin} />
 
@@ -109,14 +111,6 @@ function GeneralStandings() {
         </p>
       </div>
 
-      <PlayerSportsModal
-        open={selectedPlayerId !== null}
-        onClose={() => setSelectedPlayerId(null)}
-        sports={sports}
-        pairs={pairs}
-        playerId={selectedPlayerId}
-        players={playersMap}
-      />
     </div>
   );
 }

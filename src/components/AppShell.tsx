@@ -84,7 +84,7 @@ function Onboarding() {
         isAdmin ? (
           <div className="card space-y-3 p-5 text-center">
             <p className="text-sm text-slate-300">
-              Todavía no hay jugadores. Como administrador, crea los 10 jugadores para
+              Todavía no hay jugadores. Como administrador, crea los 11 jugadores para
               empezar (las parejas se definen luego en cada deporte).
             </p>
             <button onClick={initTournament} disabled={seeding} className="btn-primary w-full">

@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { LogOut, Shield, Mail, Hash, Camera } from "lucide-react";
+import { LogOut, Shield, Mail, Hash, Camera, LineChart } from "lucide-react";
 import { Protected } from "@/components/AppShell";
 import { Card, FullScreenLoader, PairBadge, PhotoLightbox, SectionTitle, Spinner } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
@@ -111,6 +111,12 @@ function Perfil() {
           </div>
         )}
       </div>
+
+      {user.playerId && (
+        <Link href={`/jugadores/${user.playerId}`} className="btn-ghost w-full">
+          <LineChart className="h-4 w-4" /> Ver mi perfil y estadísticas
+        </Link>
+      )}
 
       {isAdmin && (
         <Link href="/admin" className="btn-ghost w-full">

@@ -6,13 +6,17 @@ import type {
   GroupRow,
   Knockout,
   KnockoutMatch,
+  MatchOutcome,
   Pair,
+  PlayerProfile,
   PlayerRow,
+  PlayerSportStat,
   Sport,
   SportResult,
   SportStatus,
 } from "./types";
 import { SPORT_POINTS } from "./constants";
+import { pairPlayerIds } from "./helpers";
 
 // ---------- Fábricas ----------
 
@@ -382,6 +386,105 @@ export function computeIndividualGeneral(
   });
 
   return sorted;
+}
+
+// ---------- Perfil individual de un jugador ----------
+
+/**
+ * Reúne todas las estadísticas de un jugador a lo largo de los deportes: puntos
+ * por deporte y acumulados (para la gráfica de evolución), medallas, balance de
+ * partidos (PJ/G/E/P), % de victorias, mejor deporte, forma reciente y racha.
+ * Cuenta también al jugador cuando es el tercer integrante (comodín) de un trío.
+ */
+export function computePlayerProfile(
+  sports: Sport[],
+  pairs: Pair[],
+  playerId: string
+): PlayerProfile {
+  const ordered = [...sports].sort((a, b) => a.order - b.order);
+  const perSport: PlayerSportStat[] = [];
+  const form: MatchOutcome[] = [];
+
+  let cumulative = 0;
+  let gold = 0, silver = 0, bronze = 0;
+  let played = 0, won = 0, drawn = 0, lost = 0;
+
+  for (const sport of ordered) {
+    const sportPairs = pairs.filter((p) => p.sportId === sport.id);
+    const pairIds = sportPairs.map((p) => p.id);
+    const myPair = sportPairs.find((p) => pairPlayerIds(p).includes(playerId));
+
+    let medal: PlayerSportStat["medal"] = null;
+    let points = 0;
+    let partnerIds: string[] = [];
+    let sPlayed = 0, sWon = 0, sDrawn = 0, sLost = 0;
+
+    if (myPair) {
+      partnerIds = pairPlayerIds(myPair).filter((id) => id !== playerId);
+      const res = computeSportResult(sport, pairIds);
+      if (res.championPairId === myPair.id) { medal = "gold"; points = SPORT_POINTS.champion; }
+      else if (res.runnerUpPairId === myPair.id) { medal = "silver"; points = SPORT_POINTS.runnerUp; }
+      else if (res.thirdPairId === myPair.id) { medal = "bronze"; points = SPORT_POINTS.third; }
+
+      for (const m of pairMatchesInSport(sport, myPair.id, pairIds)) {
+        if (!m.played) continue;
+        sPlayed++;
+        if (m.outcome === "win") { sWon++; form.push("win"); }
+        else if (m.outcome === "loss") { sLost++; form.push("loss"); }
+        else if (m.outcome === "draw") { sDrawn++; form.push("draw"); }
+      }
+    }
+
+    cumulative += points;
+    if (medal === "gold") gold++;
+    else if (medal === "silver") silver++;
+    else if (medal === "bronze") bronze++;
+    played += sPlayed; won += sWon; drawn += sDrawn; lost += sLost;
+
+    perSport.push({
+      sportId: sport.id,
+      sportName: sport.name,
+      sportEmoji: sport.emoji,
+      pairId: myPair?.id ?? null,
+      partnerIds,
+      medal,
+      points,
+      cumulative,
+      played: sPlayed,
+      won: sWon,
+      drawn: sDrawn,
+      lost: sLost,
+    });
+  }
+
+  // Mejor deporte: el de más puntos (el primero en caso de empate).
+  let bestSport: PlayerProfile["bestSport"] = null;
+  for (const s of perSport) {
+    if (s.points > 0 && (!bestSport || s.points > bestSport.points)) {
+      bestSport = { name: s.sportName, emoji: s.sportEmoji, points: s.points };
+    }
+  }
+
+  // Racha actual: cuántos últimos resultados iguales seguidos hay.
+  const streak: PlayerProfile["streak"] = { type: null, count: 0 };
+  for (let i = form.length - 1; i >= 0; i--) {
+    if (streak.type === null) { streak.type = form[i]; streak.count = 1; }
+    else if (form[i] === streak.type) { streak.count++; }
+    else break;
+  }
+
+  return {
+    playerId,
+    totalPoints: cumulative,
+    gold, silver, bronze,
+    podiums: gold + silver + bronze,
+    played, won, drawn, lost,
+    winRate: played > 0 ? Math.round((won / played) * 100) : 0,
+    bestSport,
+    form,
+    streak,
+    perSport,
+  };
 }
 
 // ---------- Gran Final ----------

@@ -12,10 +12,8 @@ import {
   pairColor,
   pairInitials,
   pairMembers,
-  pairPlayerIds,
   playerName,
 } from "@/lib/helpers";
-import { PAIR_COLOR_KEYS } from "@/lib/constants";
 import {
   computeGroupTable,
   computeSportResult,
@@ -34,7 +32,7 @@ import {
   useGrandFinal,
   setGrandFinalKnockoutResult,
 } from "@/lib/db";
-import { PairBadge, PlayerBadge, Modal, PhotoLightbox } from "./ui";
+import { PairBadge, Modal, PhotoLightbox } from "./ui";
 
 // ---------- Estado visual ----------
 export function statusBadge(status: SportStatus) {
@@ -899,94 +897,5 @@ function GfPairsList({ pairs, players }: { pairs: Pair[]; players: Map<string, P
         {pairs.length === 0 && <p className="text-xs text-slate-500">Aún no hay clasificación.</p>}
       </div>
     </div>
-  );
-}
-
-// =====================================================================
-//  Modal: resumen de un jugador por deportes (clasificación individual)
-// =====================================================================
-export function PlayerSportsModal({
-  open,
-  onClose,
-  sports,
-  pairs,
-  playerId,
-  players,
-}: {
-  open: boolean;
-  onClose: () => void;
-  sports: Sport[];
-  pairs: Pair[];
-  playerId: string | null;
-  players: Map<string, Player>;
-}) {
-  const player = playerId ? players.get(playerId) : undefined;
-
-  const rows = playerId
-    ? sports.map((s) => {
-        const sportPairs = pairs.filter((p) => p.sportId === s.id);
-        const myPair = sportPairs.find((p) =>
-          pairPlayerIds(p).includes(playerId)
-        );
-        let medal = "";
-        let pts = 0;
-        if (myPair) {
-          const res = computeSportResult(s, sportPairs.map((p) => p.id));
-          if (res.championPairId === myPair.id) { medal = "🥇"; pts = 3; }
-          else if (res.runnerUpPairId === myPair.id) { medal = "🥈"; pts = 2; }
-          else if (res.thirdPairId === myPair.id) { medal = "🥉"; pts = 1; }
-        }
-        const partnerIds = myPair
-          ? pairPlayerIds(myPair).filter((id) => id !== playerId)
-          : [];
-        return { sport: s, partnerIds, medal, pts };
-      })
-    : [];
-  const total = rows.reduce((a, r) => a + r.pts, 0);
-  const colorKey = PAIR_COLOR_KEYS[(player?.order ?? 0) % PAIR_COLOR_KEYS.length];
-
-  return (
-    <Modal open={open && !!player} onClose={onClose} title={player?.name ?? "Jugador"}>
-      <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <PlayerBadge name={player?.name ?? "?"} size={44} colorKey={colorKey} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-white">{player?.name}</p>
-            <p className="text-xs text-slate-400">Puntos totales</p>
-          </div>
-          <span className="text-2xl font-extrabold tabular text-white">{total}</span>
-        </div>
-
-        <div className="space-y-2">
-          {rows.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-white/10 px-4 py-6 text-center text-sm text-slate-400">
-              Todavía no hay deportes.
-            </p>
-          ) : (
-            rows.map((r) => (
-              <div key={r.sport.id} className="flex items-center gap-2 rounded-xl border border-white/10 bg-ink-900/60 px-3 py-2.5">
-                <span className="text-lg">{r.sport.emoji}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-white">{r.sport.name}</p>
-                  <p className="truncate text-[11px] text-slate-400">
-                    {r.partnerIds.length
-                      ? `con ${r.partnerIds.map((id) => playerName(players, id)).join(" y ")}`
-                      : "sin pareja"}
-                  </p>
-                </div>
-                {r.medal ? (
-                  <span className="text-base">{r.medal}</span>
-                ) : (
-                  <span className="text-xs text-slate-500">—</span>
-                )}
-                <span className={cn("w-8 text-right text-sm font-bold tabular", r.pts > 0 ? "text-brand-300" : "text-slate-600")}>
-                  +{r.pts}
-                </span>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-    </Modal>
   );
 }
